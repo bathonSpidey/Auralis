@@ -50,6 +50,11 @@ class TestSpotifyApi():
         self.connector.add_songs_to_playlist(self.client, palaylist.id, songs)
         assert 'test playlist' in [playlist.name for playlist in self.connector.get_user_playlists(self.client)]
         
+    def test_recently_played(self):
+        recently_played = self.connector.recently_played(self.client)
+        print(recently_played)
+        assert len(recently_played) > 0
+        
         
     
         

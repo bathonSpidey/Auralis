@@ -11,7 +11,7 @@ class SpotifyApiConnector():
         self.redirect_uri = 'http://localhost:8888/callback'
         self.scope = "user-read-private", "user-read-email", "playlist-modify-private", "playlist-read-private",\
                 "playlist-modify-public", "user-read-currently-playing",\
-                "user-modify-playback-state", "user-read-playback-state"
+                "user-modify-playback-state", "user-read-playback-state","user-read-recently-played"
 
     def connect(self, client_id, client_secret):
         return spotipy.Spotify(auth_manager=SpotifyOAuth(client_id, client_secret, redirect_uri=self.redirect_uri, scope=self.scope))
@@ -54,4 +54,8 @@ class SpotifyApiConnector():
         for song in songs:
             if song.name not in existing_songs:
                 client.playlist_add_items(playlist_id, [song.uri])
+                
+    def recently_played(self, client):
+        recently_played = client.current_user_recently_played()["items"]
+        return [Song(**song["track"]) for song in recently_played]
         
