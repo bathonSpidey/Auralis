@@ -14,8 +14,7 @@ class TestWeatherApiConnector:
     
     def test_get_weather(self):
         connector = WeatherApiConnector(os.getenv('WEATHER'))
-        location = connector.get_location()
-        weather = connector.get_weather(location)
+        weather = connector.get_weather()
         assert weather.temperature > 0.0
     
     

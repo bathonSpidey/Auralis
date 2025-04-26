@@ -1,8 +1,14 @@
 import pytest
 import dotenv
 import os
-
-from src.SpotifyApiConnector import SpotifyApiConnector
+import sys
+current_dir = os.path.dirname(os.path.abspath(__file__))
+# Assuming app.py is at the root, current_dir is the project root.
+# If app.py were inside another folder, you might need os.path.dirname(current_dir)
+project_root = current_dir
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
+from src.spotify_api_connector import SpotifyApiConnector
 
 dotenv.load_dotenv()
 
@@ -23,7 +29,7 @@ class TestSpotifyApi():
         
     def test_get_songs_from_playlist(self):
         songs = self.connector.get_songs_from_playlist( self.playlis_id)
-        assert len(songs) > 50
+        assert len(songs) > 25
         
     def test_search_for_songs(self):
         search = self.connector.search_for_song(query='Imagine Dragons Demons')

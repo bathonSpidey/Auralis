@@ -1,6 +1,6 @@
-from src.models.base import BaseItem
+from models.base import BaseItem
 from pydantic import field_serializer
-from src.models.artist import Artist
+from models.artist import Artist
 from typing import List
 
 class Song(BaseItem):

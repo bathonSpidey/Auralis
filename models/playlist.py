@@ -1,4 +1,4 @@
-from src.models.base import BaseItem
+from models.base import BaseItem
 
 class Playlist(BaseItem):
     id: str

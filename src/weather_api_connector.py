@@ -1,9 +1,9 @@
-from src.models.location import Location
+from models.location import Location
 import datetime
 
 import requests
 
-from src.models.location_temperature import Temperature
+from models.location_temperature import Temperature
 
 
 class WeatherApiConnector:
@@ -16,7 +16,7 @@ class WeatherApiConnector:
        data = response.json()
        return Location(**data)
    
-    def get_weather(self, location):
+    def get_weather(self):
         location = self.get_location()
         time = int(datetime.datetime.now().timestamp())
         response = requests.get(f'https://api.openweathermap.org/data/3.0/onecall/timemachine?lat={location.lat}&lon={location.lon}&dt={time}&appid={self.api_key}&units=metric')

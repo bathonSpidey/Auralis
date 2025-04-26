@@ -1,9 +1,9 @@
 import spotipy
 import random
 from spotipy.oauth2 import SpotifyOAuth
-from src.models.playlist import Playlist
-from src.models.song import Song
-from src.models.device import Device
+from models.playlist import Playlist
+from models.song import Song
+from models.device import Device
 
 
 class SpotifyApiConnector():

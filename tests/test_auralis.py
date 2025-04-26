@@ -2,7 +2,7 @@ import dotenv
 import os
 
 from agent.auralis import Auralis
-from src.SpotifyApiConnector import SpotifyApiConnector
+from src.spotify_api_connector import SpotifyApiConnector
 from src.weather_api_connector import WeatherApiConnector
 
 dotenv.load_dotenv()

@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field, field_serializer
-from src.models.location_weather import Weather
+from models.location_weather import Weather
 from typing import List
 
 class Temperature(BaseModel):
