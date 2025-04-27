@@ -16,9 +16,10 @@ class WeatherApiConnector:
        data = response.json()
        return Location(**data)
    
-    def get_weather(self):
+    def get_current_location_weather(self):
         location = self.get_location()
         time = int(datetime.datetime.now().timestamp())
         response = requests.get(f'https://api.openweathermap.org/data/3.0/onecall/timemachine?lat={location.lat}&lon={location.lon}&dt={time}&appid={self.api_key}&units=metric')
         data = response.json()["data"][0]
         return Temperature(**data)
+        

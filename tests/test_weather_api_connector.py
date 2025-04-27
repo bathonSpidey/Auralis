@@ -1,7 +1,6 @@
-import dotenv
+
 import os
 
-dotenv.load_dotenv()
 
 from src.weather_api_connector import WeatherApiConnector
 
@@ -14,7 +13,7 @@ class TestWeatherApiConnector:
     
     def test_get_weather(self):
         connector = WeatherApiConnector(os.getenv('WEATHER'))
-        weather = connector.get_weather()
+        weather = connector.get_current_location_weather()
         assert weather.temperature > 0.0
     
     

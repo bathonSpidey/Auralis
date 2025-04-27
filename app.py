@@ -28,13 +28,20 @@ class App:
             if st.button("Save API Key"):
                 self.cookies["openai_api_key"] = self.openai_api_key
                 self.cookies.save()
+                st.rerun()
+        if self.openai_api_key and st.button("Reset API Key"):
+             self.cookies["openai_api_key"] = ""
+             self.cookies.save()
+             self.openai_api_key = None
+             st.rerun()
         location_based = st.checkbox("Enable Location-based suggestion")
         if location_based:
             weather_api_key = st.text_input("Weather API Key", type="password")
             weather_connector = WeatherApiConnector(api_key=weather_api_key)
-        if st.button("Song of the moment!"):
+        if self.openai_api_key and st.button("Song of the moment!"):
             auralis = Auralis(self.spotify_connector, self.openai_api_key)
-            song, message = auralis.song_of_the_moment_suggestion(weather_connector=weather_connector)
+            song, agent_message, message = auralis.song_of_the_moment_suggestion(weather_connector=weather_connector)
+            st.write(agent_message)
             st.write(message)
             
 if __name__ == "__main__":
