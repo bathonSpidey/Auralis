@@ -95,22 +95,22 @@ class App:
 
     def run(self):
         self.apply_custom_css()
-        file = open("resources/logo1.png", "rb")
-        contents = file.read()
-        data_url = base64.b64encode(contents).decode("utf-8")
-        file.close()
-
-        # Logo section
-        st.markdown(
-            """
-            <div style="text-align:center;">
-                <img src="data:image/png;base64,{data_url}" width="180" style="margin-bottom: 10px;">
-                <h1 style="margin-bottom: 5px;">Auralis</h1>
-                <p style="color: #B3B3B3;"><i>AI-powered Spotify Companion</i></p>
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
+        left_co, cent_co,last_co = st.columns(3)
+        with left_co:
+            st.image(
+                "https://github.com/bathonSpidey/Auralis/blob/e3948377dca6996d5f16ea46dd128e1dc05a76ac/resources/logo1.png?raw=true", 
+                width=100
+            )
+        with cent_co:
+            st.markdown(
+                """
+                <div style="text-align:center;">
+                    <h1 style="margin-bottom: 5px;">Auralis</h1>
+                    <p style="color: #B3B3B3;"><i>AI-powered Spotify Companion</i></p>
+                </div>
+                """,
+                unsafe_allow_html=True
+            )
 
         weather_connector = None
 
