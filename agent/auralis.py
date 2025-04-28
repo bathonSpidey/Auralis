@@ -83,7 +83,7 @@ class Auralis:
             return None
 
     def playlist_generator(self, user_prompt, weather_connector=None):
-        system_prompt = "You are a Spotify playlist manager. Given the user's prompt, generate a playlist with a fitting name.Focus primarily on the mood, genre preferences, and overall vibe inferred from the user prompt or context — but do not directly copy songs from the user context. If absolutely necessary to enhance personalization, you may include up to 4 songs from the user's known favorites or recently played, but only if they are a strong fit. Ensure the playlist duration is sufficient for a satisfying listening experience. Incorporate a variety of songs from different countries and regions where appropriate to keep the playlist fresh and diverse"
+        system_prompt = "You are a Spotify playlist manager. Given the user's prompt, generate a playlist with a fitting name.Focus primarily on the mood, genre preferences, and overall vibe inferred from the user prompt and context — but do not directly copy songs from the user context. If absolutely necessary to enhance personalization, you may include up to 4 songs from either the user's favorites or recently played, but only if they are a strong fit. Ensure the playlist duration is sufficient for a satisfying listening experience. Incorporate a variety of songs from different countries and regions  where appropriate to keep the playlist fresh and diverse. Do not include too many sogs from the same artist"
         tools = [
             {
                 "type": "function",
@@ -125,5 +125,4 @@ class Auralis:
                 if tool_call.function.name == "generate_playlist":
                     args = json.loads(tool_call.function.arguments)
                     self.spotify_connector.generate_playlist_from_auralis(args['playlist_name'], args['songs'])
-                    playlist = args
-                    return playlist, message.content
+                    return args, message.content

@@ -116,7 +116,8 @@ class SpotifyApiConnector:
         palylist = self.create_playlist(playlist_name)
         songs_in_spotify = [self.search_for_song(song)[0] for song in songs]
         self.add_songs_to_playlist(palylist.id, songs_in_spotify)
-        self.play_playlist(palylist.uri)
+        if not self.is_currently_playing():
+            self.play_playlist(palylist.uri)
 
     def recently_played(self):
         recently_played = self.client.current_user_recently_played()["items"]
