@@ -33,7 +33,7 @@ class TestSpotifyApi:
         assert "demons" in search[0].name.lower()
 
     def test_get_all_active_devices(self):
-        devices = self.connector.get_all_active_devices()
+        devices = self.connector.get_all_user_devices()
         assert len(devices) > 2
 
     def test_recently_played(self):

@@ -58,7 +58,7 @@ class App:
                 st.rerun()
         if self.cookies.get("openai_api_key"):
             st.success(
-                f"Found stored API Key for model {self.model}. If you want to change or not correct please reset it"
+                f"Found stored API Key for model {self.model}. If you want to change model and key please reset it"
             )
         if self.openai_api_key and st.button("Reset API Key"):
             self.cookies["openai_api_key"] = ""
@@ -77,6 +77,15 @@ class App:
             )
             st.write(agent_message)
             st.write(message)
+            
+        user_playlist_prompt = st.text_input("Playlist prompt")
+        if self.openai_api_key and st.button("Generate playlist"):
+            auralis = Auralis(self.spotify_connector, self.openai_api_key)
+            playlist, agent_message = auralis.playlist_generator(
+                user_prompt=user_playlist_prompt, weather_connector=weather_connector
+            )
+            st.write(agent_message)
+            st.write(playlist)
 
 
 if __name__ == "__main__":

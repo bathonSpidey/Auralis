@@ -7,6 +7,15 @@ from models.device import Device
 
 class SpotifyApiConnector:
     def __init__(self, client_id, client_secret):
+        """
+        Initializes the SpotifyApiConnector with client credentials and sets up the 
+        redirect URI and scope for Spotify API access.
+
+        Args:
+            client_id (str): The client ID for the Spotify application.
+            client_secret (str): The client secret for the Spotify application.
+        """
+
         self.redirect_uri = "http://localhost:8888/callback"
         self.scope = (
             "user-read-private",
@@ -25,6 +34,17 @@ class SpotifyApiConnector:
     supported_countries = ["US", "IN", "GB", "KR", "DE", "FR", "JP", "CA", "AU", "BR"]
 
     def connect(self, client_id, client_secret):
+        """
+        Establishes a connection to the Spotify API using the provided client credentials.
+
+        Args:
+            client_id (str): The client ID for the Spotify application.
+            client_secret (str): The client secret for the Spotify application.
+
+        Returns:
+            spotipy.Spotify: An authenticated Spotify client instance.
+        """
+
         return spotipy.Spotify(
             auth_manager=SpotifyOAuth(
                 client_id,
@@ -35,9 +55,21 @@ class SpotifyApiConnector:
         )
 
     def get_user_info(self):
+        """
+        Gets the current user's information from the Spotify API.
+
+        Returns:
+            dict: User information from the Spotify API.
+        """
         return self.client.me()
 
     def get_user_playlists(self):
+        """
+        Gets the current user's playlists from the Spotify API.
+
+        Returns:
+            list[Playlist]: A list of Playlist objects representing the current user's playlists.
+        """
         playlists = self.client.current_user_playlists()["items"]
         return [Playlist(**playlist) for playlist in playlists]
 
@@ -49,14 +81,15 @@ class SpotifyApiConnector:
         songs = self.client.search(q=query, type="track")["tracks"]["items"]
         return [Song(**song) for song in songs]
 
-    def get_all_active_devices(self):
+    def get_all_user_devices(self):
         devices = self.client.devices()
         return [Device(**device) for device in devices["devices"]]
 
     def create_playlist(self, playlist_name):
-        self.client.user_playlist_create(
+        playlist_name = self.client.user_playlist_create(
             user=self.get_user_info()["id"], name=playlist_name
         )
+        return Playlist(**playlist_name)
 
     def get_playlist(self, playlist_name):
         playlists = self.get_user_playlists(self.client)
@@ -72,32 +105,67 @@ class SpotifyApiConnector:
             ][0]
         return playlist
 
-    def add_songs_to_playlist(self, client, playlist_id, songs):
-        existing_songs = self.get_songs_from_playlist(self.client, playlist_id)
+    def add_songs_to_playlist(self, playlist_id, songs):
+        existing_songs = self.get_songs_from_playlist( playlist_id)
         existing_songs = [song.name for song in existing_songs]
         for song in songs:
             if song.name not in existing_songs:
-                client.playlist_add_items(playlist_id, [song.uri])
+                self.client.playlist_add_items(playlist_id, [song.uri])
+    
+    def generate_playlist_from_auralis(self, playlist_name, songs ):
+        palylist = self.create_playlist(playlist_name)
+        songs_in_spotify = [self.search_for_song(song)[0] for song in songs]
+        self.add_songs_to_playlist(palylist.id, songs_in_spotify)
+        self.play_playlist(palylist.uri)
 
     def recently_played(self):
         recently_played = self.client.current_user_recently_played()["items"]
         return [Song(**song["track"]) for song in recently_played]
 
-    def play_song(self, uri, device_id=None):
-        self.client.start_playback(uris=[uri])
+    def play_song(self, uri):
+        '''
+        Plays a song on the user's active device.
+
+        Args:
+            uri (str): The uri of the song to be played.
+
+        If no device is active, it will play on the user's computer.
+        '''
+        device_id = self.get_device_to_play_on()
+        self.client.start_playback(uris=[uri], device_id=device_id)
+        
+    def play_playlist(self, uri):
+        """
+        Plays the specified playlist on the user's active device.
+
+        Args:
+            uri (str): The URI of the playlist to be played.
+
+        If no device is currently active, it will attempt to play on the user's computer.
+        """
+
+        device_id = self.get_device_to_play_on()
+        self.client.start_playback(context_uri=uri, device_id=device_id)
+
+    def get_device_to_play_on(self):
+        devices = self.get_all_user_devices()
+        for device in devices:
+            if device.is_active:
+                device_id = device.id
+                break
+            if device.type == "Computer":
+                device_id = device.id
+        return device_id
 
     def users_top_tracks(self):
         songs = self.client.current_user_top_tracks()
         return [Song(**song) for song in songs["items"]]
 
     def add_songs_to_queue(self, uri, device_id=None):
-        return self.client.add_to_queue(uri, device_id)
+        return self.client.add_to_queue(uri)
 
     def is_currently_playing(self):
         state = self.client.currently_playing()
+        if not state:
+            return False
         return state["is_playing"]
-    
-    def diconnect(self):
-        self.client.auth_manager.revoke_token()
-        self.client = None
-        self.redirect_uri = None

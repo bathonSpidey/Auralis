@@ -26,7 +26,8 @@ class Auralis:
             6, 7, 8] else "autumn" if month in [9, 10, 11] else "winter"
         recent_songs = self.spotify_connector.recently_played()
         top_tracks = self.spotify_connector.users_top_tracks()
-        return {"time_of_day": time_of_day, "season": season, "recently_played_songs": [item.model_dump(exclude={"id", "uri"}) for item in recent_songs[:20]], "my_top_tracks": [item.model_dump(exclude={"id", "uri"}) for item in top_tracks[:10]], "my_current_weather": weather.model_dump() if weather else None, "my_current_location": location.model_dump(exclude={"lat", "lon"}) if location else None}
+        playlists = self.spotify_connector.get_user_playlists()
+        return {"time_of_day": time_of_day, "season": season, "recently_played_songs": [item.model_dump(exclude={"id", "uri"}) for item in recent_songs[:20]], "my_top_tracks": [item.model_dump(exclude={"id", "uri"}) for item in top_tracks[:10]], "my_playlists": [item.model_dump(exclude={"id", "uri", "href"}) for item in playlists], "my_current_weather": weather.model_dump() if weather else None, "my_current_location": location.model_dump(exclude={"lat", "lon"}) if location else None}
 
     def song_of_the_moment_suggestion(self, weather_connector=None):
         context = self.build_context(weather_connector=weather_connector)
@@ -80,16 +81,9 @@ class Auralis:
                     return song, suggested_text, message.content
             print("No valid suggestion.")
             return None
-        
-    def build_playlist_context(self, weather_connector=None):
-        existing_context = self.build_context(weather_connector=weather_connector)
-        playlists = self.spotify_connector.get_user_playlists()
-        existing_context["existing_playlists"] = [item.model_dump(exclude={"id", "uri", "href"}) for item in playlists]
-        return existing_context
 
     def playlist_generator(self, user_prompt, weather_connector=None):
-        context = None
-        system_prompt = "You are a spotify playlist manager. Given the user prompt you generate a playlist for the user. You also generate a fitting name for the playlist. Make sure that the playlist is long enough. Use whatever tools that are present at your disposal. You can also refer to the user context if given to get a bit of idea of the user preferences. Do not use playlist name directly from the user context. If you have to include, include only 5 songs from the user context that you think will fit in the playlist.  Try to include a variety of songs from different countries and regions if it fits in the provided user context. The context is provided for you to know more about the user not to be used directly."
+        system_prompt = "You are a Spotify playlist manager. Given the user's prompt, generate a playlist with a fitting name.Focus primarily on the mood, genre preferences, and overall vibe inferred from the user prompt or context — but do not directly copy songs from the user context. If absolutely necessary to enhance personalization, you may include up to 4 songs from the user's known favorites or recently played, but only if they are a strong fit. Ensure the playlist duration is sufficient for a satisfying listening experience. Incorporate a variety of songs from different countries and regions where appropriate to keep the playlist fresh and diverse"
         tools = [
             {
                 "type": "function",
@@ -113,8 +107,8 @@ class Auralis:
                 }
             }
         ]
-        if weather_connector:
-            context = self.build_playlist_context(weather_connector=weather_connector)
+        
+        context = self.build_context(weather_connector=weather_connector)
         response = self.openai.chat.completions.create(
             model=self.model,
             messages=[
@@ -130,5 +124,6 @@ class Auralis:
             for tool_call in message.tool_calls:
                 if tool_call.function.name == "generate_playlist":
                     args = json.loads(tool_call.function.arguments)
+                    self.spotify_connector.generate_playlist_from_auralis(args['playlist_name'], args['songs'])
                     playlist = args
-                    return playlist, message
+                    return playlist, message.content
