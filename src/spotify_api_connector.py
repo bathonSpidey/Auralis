@@ -44,15 +44,16 @@ class SpotifyApiConnector:
         Returns:
             spotipy.Spotify: An authenticated Spotify client instance.
         """
+        self.oaut_manager = SpotifyOAuth(
+            client_id,
+            client_secret,
+            redirect_uri=self.redirect_uri,
+            scope=self.scope,
+        )
 
         return spotipy.Spotify(
-            auth_manager=SpotifyOAuth(
-                client_id,
-                client_secret,
-                redirect_uri=self.redirect_uri,
-                scope=self.scope,
+            auth_manager=self.oaut_manager,
             )
-        )
 
     def get_user_info(self):
         """
