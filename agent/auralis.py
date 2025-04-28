@@ -89,7 +89,7 @@ class Auralis:
 
     def playlist_generator(self, user_prompt, weather_connector=None):
         context = None
-        system_prompt = "You are a spotify playlist manager. Given the user prompt you generate a playlist for the user. You also generate a fitting name for the playlist. Make sure that the playlist is long enough. Use whatever tools that are present at your disposal. You can also refer to the user context if given to get a bit of idea of the user preferences. Do not use any song or playlist name directly from the user context. Try to include a variety of songs from differnet countrie and regions  if it fits in the provided user context."
+        system_prompt = "You are a spotify playlist manager. Given the user prompt you generate a playlist for the user. You also generate a fitting name for the playlist. Make sure that the playlist is long enough. Use whatever tools that are present at your disposal. You can also refer to the user context if given to get a bit of idea of the user preferences. Do not use playlist name directly from the user context. If you have to include, include only 5 songs from the user context that you think will fit in the playlist.  Try to include a variety of songs from different countries and regions if it fits in the provided user context. The context is provided for you to know more about the user not to be used directly."
         tools = [
             {
                 "type": "function",
