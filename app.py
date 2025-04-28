@@ -97,7 +97,7 @@ class App:
                     alt="Auralis Logo" style="width:80px; height:auto;">
                 <div style="text-align: left;">
                     <h1 style="margin: 0; color: #1DB954;">Auralis</h1>
-                    <p style="color: #B3B3B3; margin: 0; font-size: 18px;"><i>AI-powered Spotify Companion</i></p>
+                    <p style="color: #B3B3B3; margin: 0; font-size: 18px;"><i>Your Personal Music Agent — Smarter. Sharper. Tuned to You.</i></p>
                 </div>
             </div>
         """, unsafe_allow_html=True)
@@ -192,12 +192,12 @@ class App:
                     )
         with col3:
             st.empty()
-        st.success(agent_message)
-        st.markdown(f"### 🎵 Playlist: {playlist['playlist_name']}")
-        st.markdown("---")
-        for idx, song in enumerate(playlist['songs'], start=1):
-            st.markdown(f"**{idx}. {song}**")
-        
+        if playlist is not None:
+            st.success(agent_message)
+            st.markdown(f"### 🎵 Playlist: {playlist['playlist_name']}")
+            st.markdown("---")
+            for idx, song in enumerate(playlist['songs'], start=1):
+                st.markdown(f"**{idx}. {song}**")
         
         st.divider()
         st.caption("🚀 Built with ❤️ powered by Curiosity, Spotify, and Streamlit")
