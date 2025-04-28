@@ -31,7 +31,7 @@ class Auralis:
 
     def song_of_the_moment_suggestion(self, weather_connector=None):
         context = self.build_context(weather_connector=weather_connector)
-        system_prompt = "You are a spotify music assistant AI. Given the user context, find a song best based on the user context and play a fitting song in spotify. Check the user recent trend in songs. Do not use any song in the users top tracks but use the information along with the other information in the context to suggest a song. You can include country based songs as well. "
+        system_prompt = "You are a Spotify song recommender. Given the user prompt, select a single song that best matches the mood, genre, and overall vibe described. Focus on interpreting the user's preferences from their prompt or context, but do not directly copy songs from the user context. If absolutely necessary for better personalization, you may select one song from the user's known favorites, but only if it strongly fits the situation. Choose songs creatively, considering a variety of artists from different countries and regions where appropriate."
         user_prompt = {
             "context": context
         }
