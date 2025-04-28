@@ -1,0 +1,5 @@
+streamlit
+st-cookies-manager
+spotipy
+openai
+dotenv
