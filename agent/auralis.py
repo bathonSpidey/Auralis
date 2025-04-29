@@ -20,7 +20,7 @@ class Auralis:
         hour = datetime.now().hour
         month = datetime.now().month
         location = weather_connector.encode_location(
-            city) if city else None
+            city) if weather_connector else None
         weather = weather_connector.get_current_location_weather(
             city) if weather_connector else None
         if location:
