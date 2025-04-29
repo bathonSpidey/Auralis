@@ -25,6 +25,7 @@ class App:
                 f'<a href="{auth_url}">Connect with Spotify</a>', unsafe_allow_html=True
             )
             code = st.query_params.get("code", [None])[0]
+            st.write(code)
             if code:
                 token_info = sp_oauth.get_access_token(code)
                 st.success("Successfully authenticated! Reload the app.")
