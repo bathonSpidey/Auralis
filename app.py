@@ -197,7 +197,7 @@ class App:
         with col1:
             st.empty()
         with col2:
-            if user_playlist_prompt and st.button("🎧 Generate your Playlist"):
+            if user_playlist_prompt and st.button("🎧 Generate your Playlist", use_container_width=True):
                 with st.spinner("Creating your personalized playlist..."):
                     auralis = Auralis(self.spotify_connector, self.openai_api_key)
                     playlist, agent_message = auralis.playlist_generator(
