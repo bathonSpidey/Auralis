@@ -201,7 +201,7 @@ class App:
                     )
         with col3:
             st.empty()
-        if playlist != {}:
+        if playlist != {} or playlist != None:
             st.success(agent_message)
             st.markdown(
                 "Note: This playlist might start playing directly in the device that you last played so please check your app. ")
