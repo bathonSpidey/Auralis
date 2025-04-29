@@ -16,7 +16,7 @@ class SpotifyApiConnector:
             client_secret (str): The client secret for the Spotify application.
         """
 
-        self.redirect_uri = "http://localhost:8888/callback"
+        self.redirect_uri = "https://auralis-7hhf8fgymxuwbpzyumhtcq.streamlit.app/"
         self.scope = (
             "user-read-private",
             "user-read-email",
