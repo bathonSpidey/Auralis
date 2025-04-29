@@ -25,13 +25,11 @@ class App:
                 f'<a href="{auth_url}">Connect with Spotify</a>', unsafe_allow_html=True
             )
             code = st.query_params.get("code", [None])
-            st.write(code)
             if code:
                 token_info = sp_oauth.get_access_token(code)
                 st.success("Successfully authenticated! Reload the app.")
         else:
             self.spotify_connector.connect_from_streamlit(token_info["access_token"])
-            st.success("Successfully authenticated!")
         self.cookies = EncryptedCookieManager(
             prefix="auralis/", password=os.getenv("COOKIES")
         )
