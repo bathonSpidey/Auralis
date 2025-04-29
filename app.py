@@ -207,6 +207,7 @@ class App:
             st.empty()
         if playlist is not None:
             st.success(agent_message)
+            st.markdown("Note: This playlist might start playing directly in the device that you last played so please check your app. ")
             st.markdown(f"### 🎵 Playlist: {playlist['playlist_name']}")
             st.markdown("---")
             for idx, song in enumerate(playlist['songs'], start=1):

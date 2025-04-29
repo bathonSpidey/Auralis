@@ -27,7 +27,7 @@ class Auralis:
         recent_songs = self.spotify_connector.recently_played()
         top_tracks = self.spotify_connector.users_top_tracks()
         playlists = self.spotify_connector.get_user_playlists()
-        return {"time_of_day": time_of_day, "season": season, "recently_played_songs": [item.model_dump(exclude={"id", "uri"}) for item in recent_songs[:20]], "my_top_tracks": [item.model_dump(exclude={"id", "uri"}) for item in top_tracks[:10]], "my_playlists": [item.model_dump(exclude={"id", "uri", "href"}) for item in playlists], "my_current_weather": weather.model_dump() if weather else None, "my_current_location": location.model_dump(exclude={"lat", "lon"}) if location else None}
+        return {"time_of_day": time_of_day, "season": season, "recently_played_songs": [item.model_dump(exclude={"id", "uri"}) for item in recent_songs[:20]], "my_top_tracks": [item.model_dump(exclude={"id", "uri"}) for item in top_tracks[:13]], "my_playlists": [item.model_dump(exclude={"id", "uri", "href"}) for item in playlists], "my_current_weather": weather.model_dump() if weather else None, "my_current_location": location.model_dump(exclude={"lat", "lon"}) if location else None}
 
     def song_of_the_moment_suggestion(self, weather_connector=None):
         context = self.build_context(weather_connector=weather_connector)
