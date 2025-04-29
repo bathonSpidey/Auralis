@@ -34,6 +34,7 @@ class App:
         else:
             self.spotify_connector.connect_from_streamlit(
                 token_info["access_token"])
+            st.markdown(f"Authenticated as: {self.spotify_connector.client.me()['display_name']}")
         self.cookies = EncryptedCookieManager(
             prefix="auralis/", password=os.getenv("COOKIES")
         )
