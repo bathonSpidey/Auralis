@@ -209,7 +209,7 @@ class App:
             st.markdown("---")
             for idx, song in enumerate(playlist['songs'], start=1):
                 st.markdown(f"**{idx}. {song}**")
-        else:
+        elif playlist is {}:
             st.error(agent_message)
 
         st.divider()
