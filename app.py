@@ -15,8 +15,22 @@ dotenv.load_dotenv()
 class App:
     def __init__(self):
         self.spotify_connector = SpotifyApiConnector(
-            os.getenv("SPOTIFY_CLIENT_ID"), os.getenv("SPOTIFY_CLIENT_SECRET")
+            os.getenv("SPOTIFY_CLIENT_ID"), os.getenv("SPOTIFY_CLIENT_SECRET"), True
         )
+        sp_oauth = self.spotify_connector.oaut_manager
+        token_info = sp_oauth.get_cached_token()
+        if not token_info:
+            auth_url = sp_oauth.get_authorize_url()
+            st.markdown(
+                f'<a href="{auth_url}">Connect with Spotify</a>', unsafe_allow_html=True
+            )
+            code = st.experimental_get_query_params().get("code", [None])[0]
+            if code:
+                token_info = sp_oauth.get_access_token(code)
+                st.success("Successfully authenticated! Reload the app.")
+        else:
+            self.spotify_connector.connect_from_streamlit(token_info["access_token"])
+            st.success("Successfully authenticated!")
         self.cookies = EncryptedCookieManager(
             prefix="auralis/", password=os.getenv("COOKIES")
         )

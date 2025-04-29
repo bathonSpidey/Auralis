@@ -6,7 +6,7 @@ from models.device import Device
 
 
 class SpotifyApiConnector:
-    def __init__(self, client_id, client_secret):
+    def __init__(self, client_id, client_secret, streamlit_cloud=False):
         """
         Initializes the SpotifyApiConnector with client credentials and sets up the 
         redirect URI and scope for Spotify API access.
@@ -16,7 +16,7 @@ class SpotifyApiConnector:
             client_secret (str): The client secret for the Spotify application.
         """
 
-        self.redirect_uri = "https://auralis-7hhf8fgymxuwbpzyumhtcq.streamlit.app/"
+        self.redirect_uri = "http://localhost:8888/callback"
         self.scope = (
             "user-read-private",
             "user-read-email",
@@ -29,11 +29,21 @@ class SpotifyApiConnector:
             "user-read-recently-played",
             "user-top-read",
         )
-        self.client = self.connect(client_id, client_secret)
+        self.oaut_manager = SpotifyOAuth(
+            client_id,
+            client_secret,
+            redirect_uri=self.redirect_uri,
+            scope=self.scope,
+        )
+        if not streamlit_cloud:
+            self.client = self.connect(client_id, client_secret)
+        else:
+            self.client = None
 
-    supported_countries = ["US", "IN", "GB", "KR", "DE", "FR", "JP", "CA", "AU", "BR"]
+    supported_countries = ["US", "IN", "GB",
+                           "KR", "DE", "FR", "JP", "CA", "AU", "BR"]
 
-    def connect(self, client_id, client_secret):
+    def connect(self):
         """
         Establishes a connection to the Spotify API using the provided client credentials.
 
@@ -44,16 +54,14 @@ class SpotifyApiConnector:
         Returns:
             spotipy.Spotify: An authenticated Spotify client instance.
         """
-        self.oaut_manager = SpotifyOAuth(
-            client_id,
-            client_secret,
-            redirect_uri=self.redirect_uri,
-            scope=self.scope,
-        )
+        
 
         return spotipy.Spotify(
             auth_manager=self.oaut_manager,
-            )
+        )
+    
+    def connect_from_streamlit(self, token):
+        self.client = spotipy.Spotify(auth=token)
 
     def get_user_info(self):
         """
@@ -107,13 +115,13 @@ class SpotifyApiConnector:
         return playlist
 
     def add_songs_to_playlist(self, playlist_id, songs):
-        existing_songs = self.get_songs_from_playlist( playlist_id)
+        existing_songs = self.get_songs_from_playlist(playlist_id)
         existing_songs = [song.name for song in existing_songs]
         for song in songs:
             if song.name not in existing_songs:
                 self.client.playlist_add_items(playlist_id, [song.uri])
-    
-    def generate_playlist_from_auralis(self, playlist_name, songs ):
+
+    def generate_playlist_from_auralis(self, playlist_name, songs):
         palylist = self.create_playlist(playlist_name)
         songs_in_spotify = [self.search_for_song(song)[0] for song in songs]
         self.add_songs_to_playlist(palylist.id, songs_in_spotify)
@@ -135,7 +143,7 @@ class SpotifyApiConnector:
         '''
         device_id = self.get_device_to_play_on()
         self.client.start_playback(uris=[uri], device_id=device_id)
-        
+
     def play_playlist(self, uri):
         """
         Plays the specified playlist on the user's active device.
