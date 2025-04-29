@@ -224,7 +224,7 @@ class App:
             "Enable Location-based Options", value=False)
         with st.expander("Enable Location-based Suggestions"):
             st.markdown(
-                "You can give both or one for a more personalised experience.")
+                "You have to have a valid weather api key to use these feature. You can contact the developer for one or bring your own keys")
         if location_based:
             self.city = st.text_input(
                 "Enter city you are at", key="city")
