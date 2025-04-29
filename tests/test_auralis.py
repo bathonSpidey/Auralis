@@ -26,6 +26,6 @@ class TestAuralis:
 
     def test_playlist_generator(self):
         playlist = self.auralis.playlist_generator(
-            "Generate a playlist for studying late night", self.weather_connector
+            "Generate a playlist for studying late night", self.weather_connector, "hanover"
         )
         assert playlist

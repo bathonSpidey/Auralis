@@ -14,8 +14,11 @@ dotenv.load_dotenv()
 
 class App:
     def __init__(self):
+        self.title = "Auralis 🎵"
+        st.set_page_config(page_title=self.title, page_icon="🎧")
         self.spotify_connector = SpotifyApiConnector(
-            os.getenv("SPOTIFY_CLIENT_ID"), os.getenv("SPOTIFY_CLIENT_SECRET"), True
+            os.getenv("SPOTIFY_CLIENT_ID"), os.getenv(
+                "SPOTIFY_CLIENT_SECRET"), True
         )
         sp_oauth = self.spotify_connector.oaut_manager
         token_info = sp_oauth.get_cached_token()
@@ -29,7 +32,8 @@ class App:
                 token_info = sp_oauth.get_access_token(code)
                 st.success("Successfully authenticated! Reload the app.")
         else:
-            self.spotify_connector.connect_from_streamlit(token_info["access_token"])
+            self.spotify_connector.connect_from_streamlit(
+                token_info["access_token"])
         self.cookies = EncryptedCookieManager(
             prefix="auralis/", password=os.getenv("COOKIES")
         )
@@ -40,7 +44,8 @@ class App:
             "openai_api_key") if self.cookies.ready() else None
         self.model = self.cookies.get(
             "selected_model") if self.cookies.ready() else "gemini-2.0-flash"
-        self.title = "Auralis 🎵"
+        self.weather_connector = None
+        self.city = None
 
     def apply_custom_css(self):
         def apply_custom_css(self):
@@ -102,18 +107,19 @@ class App:
         st.rerun()
 
     def run(self):
-        weather_connector = None
         self.apply_custom_css()
         st.markdown("""
-            <div style="display: flex; align-items: center; justify-content: center; gap: 20px; margin-bottom: 30px;">
-                <img src="https://github.com/bathonSpidey/Auralis/blob/e3948377dca6996d5f16ea46dd128e1dc05a76ac/resources/logo1.png?raw=true" 
-                    alt="Auralis Logo" style="width:80px; height:auto;">
-                <div style="text-align: left;">
-                    <h1 style="margin: 0; color: #1DB954;">Auralis</h1>
-                    <p style="color: #B3B3B3; margin: 0; font-size: 18px;"><i>Your Personal Music Agent — Smarter. Sharper. Tuned to You.</i></p>
+                <div style="display: flex; flex-direction: column; align-items: center; margin-bottom: 30px; margin-right: 30px;">
+                    <div style="display: flex; align-items: left; gap: 10px;">
+                        <img src="https://github.com/bathonSpidey/Auralis/blob/e3948377dca6996d5f16ea46dd128e1dc05a76ac/resources/logo1.png?raw=true" 
+                            alt="Auralis Logo" style="width:80px; height:auto;">
+                        <h1 style="margin: 0; color: #1DB954;">Auralis</h1>
+                    </div>
+                    <p style="color: #B3B3B3; margin: 10px 0 0 0; font-size: 18px; text-align: center;">
+                        <i>Your Personal Music Agent — Smarter. Sharper. Tuned to You.</i>
+                    </p>
                 </div>
-            </div>
-        """, unsafe_allow_html=True)
+                """, unsafe_allow_html=True)
 
         if not self.openai_api_key:
             st.error("🚨 No API Key found. Please set it up to continue:")
@@ -132,18 +138,7 @@ class App:
 
         # Sidebar
         with st.sidebar:
-            st.success(f"🧠 Model: {self.model}")
-            if st.button("Reset API Key"):
-                self.reset_user_settings()
-
-            location_based = st.checkbox(
-                "Enable Location-based Suggestions", value=False)
-            if location_based:
-                weather_api_key = st.text_input(
-                    "Enter Weather API Key", type="password", key="weather")
-                if weather_api_key:
-                    weather_connector = WeatherApiConnector(
-                        api_key=weather_api_key)
+            self.settings()
 
         # Main App Content
         # --- SONG OF THE MOMENT ---
@@ -169,7 +164,7 @@ class App:
                         auralis = Auralis(
                             self.spotify_connector, self.openai_api_key)
                         song, agent_message, message = auralis.song_of_the_moment_suggestion(
-                            weather_connector=weather_connector
+                            weather_connector=self.weather_connector, city=self.city
                         )
                         st.success(
                             f"Your background track is: {agent_message['song_title']} by {agent_message['artist_name']}")
@@ -199,22 +194,49 @@ class App:
         with col2:
             if user_playlist_prompt and st.button("🎧 Generate your Playlist", use_container_width=True):
                 with st.spinner("Creating your personalized playlist..."):
-                    auralis = Auralis(self.spotify_connector, self.openai_api_key)
+                    auralis = Auralis(self.spotify_connector,
+                                      self.openai_api_key)
                     playlist, agent_message = auralis.playlist_generator(
-                        user_prompt=user_playlist_prompt, weather_connector=weather_connector
+                        user_prompt=user_playlist_prompt, weather_connector=self.weather_connector, city=self.city
                     )
         with col3:
             st.empty()
-        if playlist is not None:
+        if playlist != {}:
             st.success(agent_message)
-            st.markdown("Note: This playlist might start playing directly in the device that you last played so please check your app. ")
+            st.markdown(
+                "Note: This playlist might start playing directly in the device that you last played so please check your app. ")
             st.markdown(f"### 🎵 Playlist: {playlist['playlist_name']}")
             st.markdown("---")
             for idx, song in enumerate(playlist['songs'], start=1):
                 st.markdown(f"**{idx}. {song}**")
-        
+        else:
+            st.error(agent_message)
+
         st.divider()
         st.caption("🚀 Built with ❤️ powered by Curiosity, Spotify, and Streamlit")
+
+    def settings(self):
+        st.success(f"🧠 Model: {self.model}")
+        if st.button("Reset API Key"):
+            self.reset_user_settings()
+
+        location_based = st.checkbox(
+            "Enable Location-based Options", value=False)
+        with st.expander("Enable Location-based Suggestions"):
+            st.markdown(
+                "You can give both or one for a more personalised experience.")
+        if location_based:
+            self.city = st.text_input(
+                "Enter city you are at", key="city")
+            weather_api_key = st.text_input(
+                "Enter Weather API Key", type="password", key="weather")
+            with st.expander("Need help getting a Weather API key?"):
+                st.markdown(
+                    "You can sign up at [weatherapi.com](https://www.weatherapi.com/) and find your key in the dashboard.")
+
+            if weather_api_key:
+                self.weather_connector = WeatherApiConnector(
+                    api_key=weather_api_key)
 
 
 if __name__ == "__main__":
