@@ -36,7 +36,7 @@ class SpotifyApiConnector:
             scope=self.scope,
         )
         if not streamlit_cloud:
-            self.client = self.connect(client_id, client_secret)
+            self.client = self.connect()
         else:
             self.client = None
 
@@ -159,11 +159,12 @@ class SpotifyApiConnector:
 
     def get_device_to_play_on(self):
         devices = self.get_all_user_devices()
+        device_id = devices[0].id
         for device in devices:
             if device.is_active:
                 device_id = device.id
                 break
-            if device.type == "Computer":
+            if device.type.lower() == "computer" or device.type.lower() == "smartphone":
                 device_id = device.id
         return device_id
 
