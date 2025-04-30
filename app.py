@@ -15,7 +15,10 @@ class App:
         self.title = "Auralis 🎵"
         st.set_page_config(page_title=self.title, page_icon="🎧")
         self.apply_custom_css()
-        self.user = "Please sign in to Spotify"
+        if self.spotify_connector.client is not None:
+            self.user = self.spotify_connector.get_user_info()["display_name"]
+        else:
+            self.user = "Please sign in to Spotify"
         self.introduction()
         self.cookies = EncryptedCookieManager(
             prefix="auralis/", password=os.getenv("COOKIES")
@@ -103,9 +106,6 @@ class App:
         else:
             token_info = st.session_state["spotify_token"]
             self.spotify_connector.get_client(token_info)
-        if self.spotify_connector.client is not None:
-            self.user = self.spotify_connector.get_user_info()["display_name"]
-            st.rerun()
 
     def apply_custom_css(self):
         st.markdown(
