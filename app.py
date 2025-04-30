@@ -18,11 +18,7 @@ class App:
             os.getenv("SPOTIFY_CLIENT_ID"), os.getenv("SPOTIFY_CLIENT_SECRET")
         )
         self.apply_custom_css()
-        if self.spotify_connector.client is not None:
-            self.user = self.spotify_connector.get_user_info()["display_name"]
-        else:
-            self.user = "Please sign in to Spotify"
-        self.introduction(self.user)
+
         self.cookies = EncryptedCookieManager(
             prefix="auralis/", password=os.getenv("COOKIES")
         )
@@ -48,6 +44,11 @@ class App:
         self.city = None
         self.user = "unknown"
         self.handle_spotify_login()
+        if self.spotify_connector.client is not None:
+            self.user = self.spotify_connector.get_user_info()["display_name"]
+        else:
+            self.user = "Please sign in to Spotify"
+        self.introduction(self.user)
 
     def introduction(self, user):
         if self.spotify_connector.client is not None:
