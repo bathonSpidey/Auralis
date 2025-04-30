@@ -14,6 +14,9 @@ class App:
     def __init__(self):
         self.title = "Auralis 🎵"
         st.set_page_config(page_title=self.title, page_icon="🎧")
+        self.spotify_connector = SpotifyApiConnector(
+            os.getenv("SPOTIFY_CLIENT_ID"), os.getenv("SPOTIFY_CLIENT_SECRET")
+        )
         self.apply_custom_css()
         if self.spotify_connector.client is not None:
             self.user = self.spotify_connector.get_user_info()["display_name"]
@@ -28,9 +31,7 @@ class App:
                 "🔒 Cookie Manager not ready. Check your configuration. Enable cookies for this website"
             )
             st.stop()
-        self.spotify_connector = SpotifyApiConnector(
-            os.getenv("SPOTIFY_CLIENT_ID"), os.getenv("SPOTIFY_CLIENT_SECRET")
-        )
+
         self.openai_api_key = (
             self.cookies.get("openai_api_key") if self.cookies.ready() else None
         )
