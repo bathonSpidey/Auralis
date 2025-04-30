@@ -64,7 +64,7 @@ class SpotifyApiConnector:
         return self.oaut_manager.get_access_token(code)
 
     def get_client(self, token_info):
-        self.client = spotipy.Spotify(auth=token_info["access_token"])
+        self.client = spotipy.Spotify(auth=token_info)
 
     def connect(self):
         """

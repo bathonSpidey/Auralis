@@ -56,6 +56,7 @@ class App:
         self.token_info = (
             self.cookies.get("token_info") if self.cookies.ready() else None
         )
+
         self.weather_connector = None
         self.city = None
         self.user = "unknown"
@@ -92,11 +93,15 @@ class App:
                 code = query_parms["code"][0]
                 token_info = self.spotify_connector.get_token_from_code(code)
                 if token_info:
-                    st.session_state["spotify_token"] = token_info
+                    st.session_state["spotify_token"] = token_info["access_token"]
                     self.spotify_connector.get_client(token_info)
                     self.user = self.spotify_connector.client.me()["display_name"]
                     st.success("Successfully authenticated! Reload the app.")
                     st.rerun()
+        else:
+            token_info = st.session_state["spotify_token"]
+            self.spotify_connector.get_client(token_info)
+            self.user = self.spotify_connector.client.me()["display_name"]
 
     def establish_spotify_connection(self):
         sp_oauth = self.spotify_connector.oaut_manager
