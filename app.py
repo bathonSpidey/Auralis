@@ -39,6 +39,7 @@ class App:
         self.spotify_connector = SpotifyApiConnector(
             os.getenv("SPOTIFY_CLIENT_ID"), os.getenv("SPOTIFY_CLIENT_SECRET")
         )
+        self.user = self.spotify_connector.client.me()["display_name"]
         # if not self.token_info:
         #     self.establish_spotify_connection()
         # else:
