@@ -14,7 +14,6 @@ class App:
     def __init__(self):
         self.title = "Auralis 🎵"
         st.set_page_config(page_title=self.title, page_icon="🎧")
-        self.apply_custom_css()
 
         self.cookies = EncryptedCookieManager(
             prefix="auralis/", password=os.getenv("COOKIES")
@@ -43,6 +42,7 @@ class App:
         else:
             self.spotify_connector.get_client(self.token_info)
             self.user = self.spotify_connector.get_user_info()["display_name"]
+        self.apply_custom_css()
         self.introduction()
 
         self.weather_connector = None
