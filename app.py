@@ -103,6 +103,9 @@ class App:
         else:
             token_info = st.session_state["spotify_token"]
             self.spotify_connector.get_client(token_info)
+        if self.spotify_connector.client is not None:
+            self.user = self.spotify_connector.get_user_info()["display_name"]
+            st.rerun()
 
     def apply_custom_css(self):
         st.markdown(
