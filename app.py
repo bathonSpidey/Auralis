@@ -103,8 +103,6 @@ class App:
         else:
             token_info = st.session_state["spotify_token"]
             self.spotify_connector.get_client(token_info)
-        self.user = self.spotify_connector.get_user_info()["display_name"]
-        st.rerun()
 
     def apply_custom_css(self):
         st.markdown(
@@ -196,7 +194,7 @@ class App:
         st.rerun()
 
     def run(self):
-        
+        self.user = self.spotify_connector.client.me()["display_name"]
         if not self.openai_api_key:
             st.error("🚨 No API Key found. Please set it up to continue:")
             self.openai_api_key = st.text_input(
