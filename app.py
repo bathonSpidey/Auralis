@@ -14,7 +14,9 @@ class App:
     def __init__(self):
         self.title = "Auralis 🎵"
         st.set_page_config(page_title=self.title, page_icon="🎧")
-
+        self.apply_custom_css()
+        self.user = "Please sign in to Spotify"
+        self.introduction()
         self.cookies = EncryptedCookieManager(
             prefix="auralis/", password=os.getenv("COOKIES")
         )
@@ -37,13 +39,6 @@ class App:
         self.token_info = (
             self.cookies.get("token_info") if self.cookies.ready() else None
         )
-        if not self.token_info:
-            self.user = "Please sign in!"
-        else:
-            self.spotify_connector.get_client(self.token_info)
-            self.user = self.spotify_connector.get_user_info()["display_name"]
-        self.apply_custom_css()
-        self.introduction()
 
         self.weather_connector = None
         self.city = None
@@ -201,6 +196,7 @@ class App:
         st.rerun()
 
     def run(self):
+        
         if not self.openai_api_key:
             st.error("🚨 No API Key found. Please set it up to continue:")
             self.openai_api_key = st.text_input(
