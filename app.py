@@ -96,7 +96,7 @@ class App:
                     self.spotify_connector.get_client(token_info)
                     self.user = self.spotify_connector.client.me()["display_name"]
                     st.success("Successfully authenticated! Reload the app.")
-                    st.experimental_rerun()
+                    st.rerun()
 
     def establish_spotify_connection(self):
         sp_oauth = self.spotify_connector.oaut_manager
