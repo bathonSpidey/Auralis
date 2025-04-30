@@ -70,6 +70,9 @@ class App:
         st.markdown("""---""")
 
     def handle_spotify_login(self):
+        if self.spotify_connector.client is not None:
+            user = self.spotify_connector.get_user_info()["display_name"]
+            st.success(f"🎉 Welcome back, {user}!")
         if "spotify_token" not in st.session_state:
             query_parms = st.query_params
             if "code" not in query_parms:
