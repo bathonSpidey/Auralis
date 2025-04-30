@@ -67,7 +67,6 @@ class App:
                 """,
             unsafe_allow_html=True,
         )
-        st.markdown("""---""")
 
     def introduction(self, user):
         st.markdown(
@@ -255,15 +254,22 @@ class App:
                 )
                 if st.button("Find my vibe", use_container_width=True):
                     with st.spinner("Finding the perfect song for you..."):
-                        auralis = Auralis(self.spotify_connector, self.openai_api_key)
-                        song, agent_message, message = (
-                            auralis.song_of_the_moment_suggestion(
-                                weather_connector=self.weather_connector, city=self.city
+                        try:
+                            auralis = Auralis(self.spotify_connector, self.openai_api_key)
+                            song, agent_message, message = (
+                                auralis.song_of_the_moment_suggestion(
+                                    weather_connector=self.weather_connector, city=self.city
+                                )
                             )
-                        )
-                        st.success(
-                            f"Your background track is: {agent_message['song_title']} by {agent_message['artist_name']}"
-                        )
+                            st.success(
+                                f"Your background track is: {agent_message['song_title']} by {agent_message['artist_name']}"
+                            )
+                        except Exception as e:
+                            st.error(
+                                "❌ Error: Unable to find a song. Please check your Spotify connection."
+                            )
+                            st.error(f"Error details: {e}")
+                            message = "Please check your Spotify connection or your open AI api key and try again."
             st.write(message)
             with col3:
                 st.empty()
@@ -297,15 +303,24 @@ class App:
                 "🎧 Generate your Playlist", use_container_width=True
             ):
                 with st.spinner("Creating your personalized playlist..."):
-                    auralis = Auralis(self.spotify_connector, self.openai_api_key)
-                    playlist, agent_message = auralis.playlist_generator(
-                        user_prompt=user_playlist_prompt,
-                        weather_connector=self.weather_connector,
-                        city=self.city,
-                    )
+                    try:
+                        auralis = Auralis(self.spotify_connector, self.openai_api_key)
+                        playlist, agent_message = auralis.playlist_generator(
+                            user_prompt=user_playlist_prompt,
+                            weather_connector=self.weather_connector,
+                            city=self.city,
+                        )
+                    except Exception as e:
+                        st.error(
+                            "❌ Error: Unable to generate playlist. Please check your Spotify connection or LLM might be overloaded"
+                        )
+                        st.error(f"Error details: {e}")
+                        agent_message = "Please check your Spotify connection or your open AI api key and try again."
+                        playlist = {}
+                        message = "Please check your Spotify connection or your open AI api key and try again."
         with col3:
             st.empty()
-        if playlist is not {} and playlist is not None:
+        if playlist != {} and playlist is not None:
             st.success(agent_message)
             st.markdown(
                 "Note: This playlist might start playing directly in the device that you last played so please check your app. "
@@ -314,8 +329,6 @@ class App:
             st.markdown("---")
             for idx, song in enumerate(playlist["songs"], start=1):
                 st.markdown(f"**{idx}. {song}**")
-        elif playlist is {}:
-            st.error(agent_message)
 
         st.divider()
         st.caption("🚀 Built with ❤️ powered by Curiosity, Spotify, and Streamlit")
