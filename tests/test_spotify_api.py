@@ -18,6 +18,10 @@ class TestSpotifyApi:
     def test_get_user_info(self):
         me = self.connector.get_user_info()
         assert "@" in me["email"]
+        
+    def test_get_auth_url(self):
+        auth_url = self.connector.get_auth_url()
+        assert "code" in auth_url
 
     def test_get_user_playlists(self):
         playlists = self.connector.get_user_playlists()

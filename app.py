@@ -12,6 +12,8 @@ dotenv.load_dotenv()
 
 class App:
     def __init__(self):
+        st.cache_data.clear()  # Clears the data cache
+        st.cache_resource.clear()
         self.title = "Auralis 🎵"
         st.set_page_config(page_title=self.title, page_icon="🎧")
         self.spotify_connector = SpotifyApiConnector(
@@ -255,10 +257,13 @@ class App:
                 if st.button("Find my vibe", use_container_width=True):
                     with st.spinner("Finding the perfect song for you..."):
                         try:
-                            auralis = Auralis(self.spotify_connector, self.openai_api_key)
+                            auralis = Auralis(
+                                self.spotify_connector, self.openai_api_key
+                            )
                             song, agent_message, message = (
                                 auralis.song_of_the_moment_suggestion(
-                                    weather_connector=self.weather_connector, city=self.city
+                                    weather_connector=self.weather_connector,
+                                    city=self.city,
                                 )
                             )
                             st.success(
