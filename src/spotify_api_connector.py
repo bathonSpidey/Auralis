@@ -1,4 +1,5 @@
 import spotipy
+import secrets
 from spotipy.oauth2 import SpotifyOAuth
 from models.playlist import Playlist
 from models.song import Song
@@ -29,12 +30,14 @@ class SpotifyApiConnector:
             "user-read-recently-played",
             "user-top-read",
         )
+        state = secrets.token_urlsafe(16)
         self.oaut_manager = SpotifyOAuth(
             client_id,
             client_secret,
             redirect_uri=self.redirect_uri,
             scope=self.scope,
             cache_path=None,
+            state=state
         )
         self.client = None
         # if not streamlit_cloud:
