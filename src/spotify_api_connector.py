@@ -8,7 +8,7 @@ from models.device import Device
 class SpotifyApiConnector:
     def __init__(self, client_id, client_secret, streamlit_cloud=False):
         """
-        Initializes the SpotifyApiConnector with client credentials and sets up the 
+        Initializes the SpotifyApiConnector with client credentials and sets up the
         redirect URI and scope for Spotify API access.
 
         Args:
@@ -34,14 +34,37 @@ class SpotifyApiConnector:
             client_secret,
             redirect_uri=self.redirect_uri,
             scope=self.scope,
+            cache_path=None,
         )
-        if not streamlit_cloud:
-            self.client = self.connect()
-        else:
-            self.client = None
+        self.client = None
+        # if not streamlit_cloud:
+        #     self.client = self.connect()
+        # else:
+        #     self.client = None
 
-    supported_countries = ["US", "IN", "GB",
-                           "KR", "DE", "FR", "JP", "CA", "AU", "BR"]
+    def get_auth_url(self):
+        """
+        Generates the authorization URL for the Spotify API.
+
+        Returns:
+            str: The authorization URL for the Spotify API.
+        """
+        return self.oaut_manager.get_authorize_url()
+
+    def get_token_from_code(self, code):
+        """
+        Exchanges the authorization code for an access token.
+
+        Args:
+            code (str): The authorization code received from Spotify.
+
+        Returns:
+            str: The access token for the Spotify API.
+        """
+        return self.oaut_manager.get_access_token(code)
+
+    def get_client(self, token_info):
+        self.client = spotipy.Spotify(auth=token_info["access_token"])
 
     def connect(self):
         """
@@ -54,12 +77,11 @@ class SpotifyApiConnector:
         Returns:
             spotipy.Spotify: An authenticated Spotify client instance.
         """
-        
 
         return spotipy.Spotify(
             auth_manager=self.oaut_manager,
         )
-    
+
     def connect_from_streamlit(self, token):
         self.client = spotipy.Spotify(auth=token)
 
@@ -133,14 +155,14 @@ class SpotifyApiConnector:
         return [Song(**song["track"]) for song in recently_played]
 
     def play_song(self, uri):
-        '''
+        """
         Plays a song on the user's active device.
 
         Args:
             uri (str): The uri of the song to be played.
 
         If no device is active, it will play on the user's computer.
-        '''
+        """
         device_id = self.get_device_to_play_on()
         self.client.start_playback(uris=[uri], device_id=device_id)
 

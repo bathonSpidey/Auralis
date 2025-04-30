@@ -14,6 +14,26 @@ class App:
     def __init__(self):
         self.title = "Auralis 🎵"
         st.set_page_config(page_title=self.title, page_icon="🎧")
+        self.apply_custom_css()
+        self.user = "Please sign in to Spotify"
+        st.markdown(
+            f"""
+                <div style="display: flex; flex-direction: column; align-items: center; margin-bottom: 30px; margin-right: 30px;">
+                    <div style="display: flex; align-items: left; gap: 10px;">
+                        <img src="https://github.com/bathonSpidey/Auralis/blob/e3948377dca6996d5f16ea46dd128e1dc05a76ac/resources/logo1.png?raw=true" 
+                            alt="Auralis Logo" style="width:80px; height:auto;">
+                        <h1 style="margin: 0; color: #1DB954;">Auralis</h1>
+                    </div>
+                    <p style="color: #B3B3B3; margin: 10px 0 0 0; font-size: 18px; text-align: center;">
+                        <i>Your Personal Music Agent — Smarter. Sharper. Tuned to You.</i>
+                        <p style="margin-top: 15px; font-size: 20px; color: white; background: linear-gradient(90deg, #1DB954 0%, #1ED760 100%); padding: 8px 20px; border-radius: 30px; box-shadow: 0 2px 8px rgba(0,0,0,0.2);">
+            🎧 Welcome back, <strong>{self.user}</strong> </p>
+                    </p>
+                </div>
+                """,
+            unsafe_allow_html=True,
+        )
+        st.markdown("""---""")
         self.cookies = EncryptedCookieManager(
             prefix="auralis/", password=os.getenv("COOKIES")
         )
@@ -22,6 +42,9 @@ class App:
                 "🔒 Cookie Manager not ready. Check your configuration. Enable cookies for this website"
             )
             st.stop()
+        self.spotify_connector = SpotifyApiConnector(
+            os.getenv("SPOTIFY_CLIENT_ID"), os.getenv("SPOTIFY_CLIENT_SECRET")
+        )
         self.openai_api_key = (
             self.cookies.get("openai_api_key") if self.cookies.ready() else None
         )
@@ -36,14 +59,44 @@ class App:
         self.weather_connector = None
         self.city = None
         self.user = "unknown"
-        self.spotify_connector = SpotifyApiConnector(
-            os.getenv("SPOTIFY_CLIENT_ID"), os.getenv("SPOTIFY_CLIENT_SECRET")
-        )
-        self.user = self.spotify_connector.client.me()["display_name"]
-        # if not self.token_info:
-        #     self.establish_spotify_connection()
-        # else:
-        #     self.connect_existing_spotify()
+        self.handle_spotify_login()
+
+    def handle_spotify_login(self):
+        if "spotify_token" not in st.session_state:
+            query_parms = st.query_params
+            if "code" not in query_parms:
+                auth_url = self.spotify_connector.get_auth_url()
+                st.markdown(
+                    f"""
+                <div style="text-align: center; margin-top: 2rem;">
+                    <a href="{auth_url}" target="_self" style="
+                        background-color: #1DB954;
+                        color: white;
+                        padding: 0.75rem 1.5rem;
+                        border-radius: 30px;
+                        font-weight: bold;
+                        text-decoration: none;
+                        font-size: 1.1rem;
+                        display: inline-block;
+                        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+                        transition: background-color 0.3s ease;
+                    " onmouseover="this.style.backgroundColor='#17a74a'" onmouseout="this.style.backgroundColor='#1DB954'">
+                        🎵 Connect with Spotify
+                    </a>
+                </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+                st.stop()
+            else:
+                code = query_parms["code"][0]
+                token_info = self.spotify_connector.get_token_from_code(code)
+                if token_info:
+                    st.session_state["spotify_token"] = token_info
+                    self.spotify_connector.get_client(token_info)
+                    self.user = self.spotify_connector.client.me()["display_name"]
+                    st.success("Successfully authenticated! Reload the app.")
+                    st.experimental_rerun()
 
     def establish_spotify_connection(self):
         sp_oauth = self.spotify_connector.oaut_manager
@@ -158,25 +211,6 @@ class App:
         st.rerun()
 
     def run(self):
-        self.apply_custom_css()
-        st.markdown(
-            f"""
-                <div style="display: flex; flex-direction: column; align-items: center; margin-bottom: 30px; margin-right: 30px;">
-                    <div style="display: flex; align-items: left; gap: 10px;">
-                        <img src="https://github.com/bathonSpidey/Auralis/blob/e3948377dca6996d5f16ea46dd128e1dc05a76ac/resources/logo1.png?raw=true" 
-                            alt="Auralis Logo" style="width:80px; height:auto;">
-                        <h1 style="margin: 0; color: #1DB954;">Auralis</h1>
-                    </div>
-                    <p style="color: #B3B3B3; margin: 10px 0 0 0; font-size: 18px; text-align: center;">
-                        <i>Your Personal Music Agent — Smarter. Sharper. Tuned to You.</i>
-                        <p style="margin-top: 15px; font-size: 20px; color: white; background: linear-gradient(90deg, #1DB954 0%, #1ED760 100%); padding: 8px 20px; border-radius: 30px; box-shadow: 0 2px 8px rgba(0,0,0,0.2);">
-            🎧 Welcome back, <strong>{self.user}</strong> </p>
-                    </p>
-                </div>
-                """,
-            unsafe_allow_html=True,
-        )
-        st.markdown("""---""")
         if not self.openai_api_key:
             st.error("🚨 No API Key found. Please set it up to continue:")
             self.openai_api_key = st.text_input(
