@@ -19,7 +19,7 @@ class App:
             self.user = self.spotify_connector.get_user_info()["display_name"]
         else:
             self.user = "Please sign in to Spotify"
-        self.introduction()
+        self.introduction(self.user)
         self.cookies = EncryptedCookieManager(
             prefix="auralis/", password=os.getenv("COOKIES")
         )
@@ -48,7 +48,7 @@ class App:
         self.user = "unknown"
         self.handle_spotify_login()
 
-    def introduction(self):
+    def introduction(self, user):
         st.markdown(
             f"""
                 <div style="display: flex; flex-direction: column; align-items: center; margin-bottom: 30px; margin-right: 30px;">
@@ -60,7 +60,7 @@ class App:
                     <p style="color: #B3B3B3; margin: 10px 0 0 0; font-size: 18px; text-align: center;">
                         <i>Your Personal Music Agent — Smarter. Sharper. Tuned to You.</i>
                         <p style="margin-top: 15px; font-size: 20px; color: white; background: linear-gradient(90deg, #1DB954 0%, #1ED760 100%); padding: 8px 20px; border-radius: 30px; box-shadow: 0 2px 8px rgba(0,0,0,0.2);">
-            🎧 Welcome back, <strong>{self.user}</strong> </p>
+            🎧 Welcome back, <strong>{user}</strong> </p>
                     </p>
                 </div>
                 """,
