@@ -111,6 +111,7 @@ class App:
                 st.stop()
             else:
                 code = query_parms["code"][0]
+                print(code)
                 token_info = self.spotify_connector.get_token_from_code(code)
                 if token_info:
                     st.session_state["spotify_token"] = token_info["access_token"]
