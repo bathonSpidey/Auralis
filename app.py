@@ -260,14 +260,14 @@ class App:
                             auralis = Auralis(
                                 self.spotify_connector, self.openai_api_key
                             )
-                            song, reason = (
+                            song_name, artist_name, reason = (
                                 auralis.song_of_the_moment_suggestion(
                                     weather_connector=self.weather_connector,
                                     city=self.city,
                                 )
                             )
                             st.success(
-                                f"Your background track is added to spotify: {reason}"
+                                f"Your background track is added to spotify: {song_name} by {artist_name}. {reason}"
                             )
                         except Exception as e:
                             st.error(
@@ -292,8 +292,6 @@ class App:
             """,
             unsafe_allow_html=True,
         )
-        playlist = None
-        agent_message = None
 
         user_playlist_prompt = st.text_input(
             "📝 What's your vibe today? 🎶\n"

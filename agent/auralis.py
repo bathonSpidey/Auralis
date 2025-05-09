@@ -43,7 +43,7 @@ class Auralis:
             self.spotify_connector.add_songs_to_queue(song.uri)
         else:
             self.spotify_connector.play_song(song.uri)
-        return song, reason
+        return song_title, artist_name, reason
     
     @registry.register(description="Assembles a playlist in spotify", tags=["playlist"])
     def generate_playlist(self, playlist_name: str, songs: List[str], reason: str) -> str:
