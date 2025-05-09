@@ -7,7 +7,7 @@ from agent.environnment import Environment
 from models.prompt import Prompt
 import json
 
-class AgentFunctionCallingActionLanguage(AgentLanguage):
+class AgentLanguage(AgentLanguage):
 
     def __init__(self):
         super().__init__()

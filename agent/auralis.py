@@ -25,7 +25,7 @@ class Auralis:
                         "gpt-4o": "https://api.openai.com/v1/", "o4-mini": "https://api.openai.com/v1/", "local_lm_studio": "localhost:1234/v1"}
    
     @registry.register(description="Suggest and plays a song in spotify", tags=["song"])
-    def suggest_song(self, song_title: str, artist_name: str) -> str:
+    def suggest_song(self, song_title: str, artist_name: str, reason: str) -> str:
         """Suggests and plays a song in spotify based on the given song title, artist name
         
         Args:
@@ -43,10 +43,10 @@ class Auralis:
             self.spotify_connector.add_songs_to_queue(song.uri)
         else:
             self.spotify_connector.play_song(song.uri)
-        return song
+        return song, reason
     
     @registry.register(description="Assembles a playlist in spotify", tags=["playlist"])
-    def generate_playlist(self, playlist_name: str, songs: List[str]) -> str:
+    def generate_playlist(self, playlist_name: str, songs: List[str], reason: str) -> str:
         """Generates a playlist in spotify with the given songs
         
         Args:
@@ -57,7 +57,7 @@ class Auralis:
             str: The success message.
         """
         self.spotify_connector.generate_playlist_from_auralis(playlist_name	, songs)
-        return "created successfully"    
+        return reason 
 
     def build_context(self, weather_connector=None, city=None):
         hour = datetime.now().hour
@@ -85,25 +85,7 @@ class Auralis:
         user_prompt = {
             "context": context
         }
-        tools = [
-            {
-                "type": "function",
-                "function": {
-                    "name": "suggest_song",
-                    "description": "Suggest a song based on user context",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "song_title": {"type": "string", "description": "Title of the suggested song"},
-                            "artist_name": {"type": "string", "description": "Artist of the suggested song"},
-                            "reason": {"type": "string", "description": "Why this song fits the context"}
-                        },
-                        "required": ["song_title", "artist_name", "reason"]
-                    }
-                }
-            }
-        ]
-
+        tools = self.registry.to_openai_tools()
         response = self.openai.chat.completions.create(
             model=self.model,
             messages=[
@@ -115,49 +97,22 @@ class Auralis:
             temperature=0.7
         )
         message = response.choices[0].message
-        song = None
         if message.tool_calls:
             for tool_call in message.tool_calls:
-                if tool_call.function.name == "suggest_song":
-                    args = json.loads(tool_call.function.arguments)
-                    suggested_text = args
-                    search_query = f"{args['song_title']} {args['artist_name']}"
-                    song = self.spotify_connector.search_for_song(search_query)[
-                        0]
-                    if self.spotify_connector.is_currently_playing():
-                        self.spotify_connector.add_songs_to_queue(song.uri)
-                    else:
-                        self.spotify_connector.play_song(song.uri)
-                    return song, suggested_text, message.content
+                return self.call_function(tool_call)
             print("No valid suggestion.")
             return None
+        
+    def call_function(self,tool_call):
+        tool_name = tool_call.function.name
+        arguments = json.loads(tool_call.function.arguments)
+        tool_func = self.registry.tools[tool_name]["function"]
+        tool_func = tool_func.__get__(self, self.__class__)
+        return tool_func(**arguments)
 
     def playlist_generator(self, user_prompt, weather_connector=None, city=None):
         system_prompt = "You are a Spotify playlist manager. Given the user's prompt, generate a playlist with a fitting name.Focus primarily on the mood, genre preferences, and overall vibe inferred from the user prompt and context — but do not directly copy songs from the user context. If absolutely necessary to enhance personalization, you may include up to 4 songs from either the user's favorites or recently played, but only if they are a strong fit. Ensure the playlist duration is sufficient for a satisfying listening experience. Incorporate a variety of songs from different countries and regions  where appropriate to keep the playlist fresh and diverse. Do not include too many sogs from the same artist"
-        tools = [
-            {
-                "type": "function",
-                "function": {
-                    "name": "generate_playlist",
-                    "description": "Generate a playlist based on user prompt",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "playlist_name": {"type": "string", "description": "Title of the suggested playlist"},
-                            "songs": {"type": "array",
-                                      "items":
-                                          {
-                                              "type": "string",
-                                              "description": "Title of the song with artist name"},
-                                      "description": "List of songs in the playlist"},
-                            "reason": {"type": "string", "description": "Why this playlist fits the context"}
-                        },
-                        "required": ["playlist_name", "songs", "reason"]
-                    }
-                }
-            }
-        ]
-
+        tools = self.registry.to_openai_tools()
         context = self.build_context(weather_connector=weather_connector, city=city)
         try:
             response = self.openai.chat.completions.create(
@@ -173,10 +128,6 @@ class Auralis:
             message = response.choices[0].message
             if message.tool_calls:
                 for tool_call in message.tool_calls:
-                    if tool_call.function.name == "generate_playlist":
-                        args = json.loads(tool_call.function.arguments)
-                        self.spotify_connector.generate_playlist_from_auralis(
-                            args['playlist_name'], args['songs'])
-                        return args, message.content
+                    return self.call_function(tool_call)
         except Exception as e:
             return {}, e.message

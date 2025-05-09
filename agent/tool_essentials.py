@@ -1,5 +1,5 @@
 import inspect
-from typing import Callable, Dict, List, Any, get_type_hints
+from typing import Callable, Dict, List, Any, get_type_hints, get_origin, get_args
 
 
 class ToolRegistry:
@@ -50,21 +50,37 @@ class ToolRegistry:
             }
 
             for param_name, param in signature.parameters.items():
-                if param_name in ["action_context", "action_agent"]:
+                if param_name in ["self","action_context", "action_agent"]:
                     continue
 
-                def get_json_type(param_type):
-                    return {
-                        str: "string",
-                        int: "integer",
-                        float: "number",
-                        bool: "boolean",
-                        list: "array",
-                        dict: "object"
-                    }.get(param_type, "string")
+                def get_json_schema(param_type):
+                    origin = get_origin(param_type)
+                    args = get_args(param_type)
+
+                    if origin is list or origin is List:
+                        item_type = args[0] if args else str
+                        return {
+                            "type": "array",
+                            "items": get_json_schema(item_type)
+                        }
+                    elif origin is dict or origin is Dict:
+                        key_type, val_type = args if args else (str, str)
+                        return {
+                            "type": "object",
+                            "additionalProperties": get_json_schema(val_type)
+                        }
+                    elif param_type in [str, int, float, bool]:
+                        return {"type": {
+                            str: "string",
+                            int: "integer",
+                            float: "number",
+                            bool: "boolean"
+                        }[param_type]}
+                    else:
+                        return {"type": "string"}
 
                 param_type = type_hints.get(param_name, str)
-                param_schema = {"type": get_json_type(param_type)}
+                param_schema = get_json_schema(param_type)
                 args_schema["properties"][param_name] = param_schema
 
                 if param.default == inspect.Parameter.empty:
