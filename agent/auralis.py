@@ -57,7 +57,7 @@ class Auralis:
             str: The success message.
         """
         self.spotify_connector.generate_playlist_from_auralis(playlist_name	, songs)
-        return reason 
+        return playlist_name, songs, reason 
 
     def build_context(self, weather_connector=None, city=None):
         hour = datetime.now().hour

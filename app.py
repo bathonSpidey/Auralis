@@ -260,14 +260,14 @@ class App:
                             auralis = Auralis(
                                 self.spotify_connector, self.openai_api_key
                             )
-                            song, agent_message, message = (
+                            song, reason = (
                                 auralis.song_of_the_moment_suggestion(
                                     weather_connector=self.weather_connector,
                                     city=self.city,
                                 )
                             )
                             st.success(
-                                f"Your background track is: {agent_message['song_title']} by {agent_message['artist_name']}"
+                                f"Your background track is added to spotify: {reason}"
                             )
                         except Exception as e:
                             st.error(
@@ -310,7 +310,7 @@ class App:
                 with st.spinner("Creating your personalized playlist..."):
                     try:
                         auralis = Auralis(self.spotify_connector, self.openai_api_key)
-                        playlist, agent_message = auralis.playlist_generator(
+                        playlist_name, songs, reason = auralis.playlist_generator(
                             user_prompt=user_playlist_prompt,
                             weather_connector=self.weather_connector,
                             city=self.city,
@@ -320,19 +320,19 @@ class App:
                             "❌ Error: Unable to generate playlist. Please check your Spotify connection or LLM might be overloaded"
                         )
                         st.error(f"Error details: {e}")
-                        agent_message = "Please check your Spotify connection or your open AI api key and try again."
-                        playlist = {}
+                        reason = "Please check your Spotify connection or your open AI api key and try again."
+                        playlist = None
                         message = "Please check your Spotify connection or your open AI api key and try again."
         with col3:
             st.empty()
-        if playlist != {} and playlist is not None:
-            st.success(agent_message)
+        if  playlist is not None:
+            st.success(reason)
             st.markdown(
                 "Note: This playlist might start playing directly in the device that you last played so please check your app. "
             )
-            st.markdown(f"### 🎵 Playlist: {playlist['playlist_name']}")
+            st.markdown(f"### 🎵 Playlist: {playlist_name}")
             st.markdown("---")
-            for idx, song in enumerate(playlist["songs"], start=1):
+            for idx, song in enumerate(songs, start=1):
                 st.markdown(f"**{idx}. {song}**")
 
         st.divider()
