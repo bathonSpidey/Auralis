@@ -7,7 +7,7 @@ from models.device import Device
 
 
 class SpotifyApiConnector:
-    def __init__(self, client_id, client_secret, streamlit_cloud=False):
+    def __init__(self, client_id, client_secret, local=False):
         """
         Initializes the SpotifyApiConnector with client credentials and sets up the
         redirect URI and scope for Spotify API access.
@@ -16,8 +16,10 @@ class SpotifyApiConnector:
             client_id (str): The client ID for the Spotify application.
             client_secret (str): The client secret for the Spotify application.
         """
-
-        self.redirect_uri = "https://auralis-7hhf8fgymxuwbpzyumhtcq.streamlit.app/"
+        if local:
+            self.redirect_uri = "http://localhost:8888/callback"
+        else:
+            self.redirect_uri = "https://auralis-7hhf8fgymxuwbpzyumhtcq.streamlit.app/"
         self.scope = (
             "user-read-private",
             "user-read-email",
@@ -39,7 +41,10 @@ class SpotifyApiConnector:
             cache_path=None,
             state=state
         )
-        self.client = None
+        if local:
+            self.client = self.connect()
+        else:
+            self.client = None
         # if not streamlit_cloud:
         #     self.client = self.connect()
         # else:

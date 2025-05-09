@@ -10,7 +10,7 @@ dotenv.load_dotenv()
 class TestSpotifyApi:
     connector = SpotifyApiConnector(
         client_id=os.getenv("SPOTIPY_CLIENT_ID"),
-        client_secret=os.getenv("SPOTIPY_CLIENT_SECRET"),
+        client_secret=os.getenv("SPOTIPY_CLIENT_SECRET"), local=True
     )
     playlis_id = "10jvPmRLMzbZlE7MwLSU5M"
     song_uri = "spotify:track:5zheSFviZNgeZLvZCOxQnE"
