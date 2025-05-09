@@ -298,6 +298,7 @@ class App:
             "Describe a mood, moment, or even a wild fantasy! 🚀\n"
             "Examples: 'Study session with coffee ☕', 'Epic road trip across mountains 🛣️', 'Chill beats on a rainy night 🌧️' — or invent your own!"
         )
+        playlist = None
         col1, col2, col3 = st.columns([1, 2, 1])
         with col1:
             st.empty()
