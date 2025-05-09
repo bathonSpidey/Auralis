@@ -27,7 +27,6 @@ class TestToolEssentials:
                 str: A greeting message
             """
             return f"Hello {name}"
-        tools = registry.tools
         assert registry.tools["add"]["description"] == "Adds two numbers"
         
         

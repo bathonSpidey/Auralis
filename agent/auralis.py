@@ -1,6 +1,9 @@
 from openai import OpenAI
 import json
 from datetime import datetime
+from agent.tool_essentials import ToolRegistry
+from models.goal import Goal
+from typing import List
 
 
 class Auralis:
@@ -12,9 +15,49 @@ class Auralis:
         self.openai = OpenAI(api_key=self.openai_api_key,
                              base_url=self.base_url)
         self.spotify_connector = spotify_connector
-
+        self.goals = [
+            Goal(priority=1, name="Song of the moment", description="Suggests and plays a song in spotify based on user context"),
+            Goal(priority=2, name="Playlist generator", description="Generates a playlist in spotify with the given songs")
+        ]
+        
+    registry = ToolRegistry()
     supported_models = {"gemini-2.0-flash": "https://generativelanguage.googleapis.com/v1beta/openai/", "gpt-4.1": "https://api.openai.com/v1/",
                         "gpt-4o": "https://api.openai.com/v1/", "o4-mini": "https://api.openai.com/v1/", "local_lm_studio": "localhost:1234/v1"}
+   
+    @registry.register(description="Suggest and plays a song in spotify", tags=["song"])
+    def suggest_song(self, song_title: str, artist_name: str) -> str:
+        """Suggests and plays a song in spotify based on the given song title, artist name
+        
+        Args:
+            song_title (str): The title of the song to be suggested.
+            artist_name (str): The name of the artist of the song to be suggested.
+            reason (str): The reason why this song should be suggested.
+        
+        Returns:
+            Song: The suggested song.
+        """
+        search_query = f"{song_title} {artist_name}"
+        song = self.spotify_connector.search_for_song(search_query)[
+            0]
+        if self.spotify_connector.is_currently_playing():
+            self.spotify_connector.add_songs_to_queue(song.uri)
+        else:
+            self.spotify_connector.play_song(song.uri)
+        return song
+    
+    @registry.register(description="Assembles a playlist in spotify", tags=["playlist"])
+    def generate_playlist(self, playlist_name: str, songs: List[str]) -> str:
+        """Generates a playlist in spotify with the given songs
+        
+        Args:
+            playlist_name (str): The name of the playlist to be generated.
+            songs (List[str]): The list of songs to be added to the playlist.
+        
+        Returns:
+            str: The success message.
+        """
+        self.spotify_connector.generate_playlist_from_auralis(playlist_name	, songs)
+        return "created successfully"    
 
     def build_context(self, weather_connector=None, city=None):
         hour = datetime.now().hour

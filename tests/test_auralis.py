@@ -23,6 +23,10 @@ class TestAuralis:
     def test_song_of_the_moment_suggestion(self):
         song = self.auralis.song_of_the_moment_suggestion()
         assert song is not None
+        
+    def test_registry(self):
+        registry = self.auralis.registry
+        assert registry.tools["suggest_song"]["description"] == "Suggest and plays a song in spotify"
 
     def test_playlist_generator(self):
         playlist = self.auralis.playlist_generator(
