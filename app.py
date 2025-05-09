@@ -267,7 +267,7 @@ class App:
                                 )
                             )
                             st.success(
-                                f"Your background track is added to spotify: {song_name} by {artist_name}. {reason}"
+                                f"Your background track is added to spotify: **{song_name}** by **{artist_name}**. {reason}"
                             )
                         except Exception as e:
                             st.error(
@@ -298,7 +298,7 @@ class App:
             "Describe a mood, moment, or even a wild fantasy! 🚀\n"
             "Examples: 'Study session with coffee ☕', 'Epic road trip across mountains 🛣️', 'Chill beats on a rainy night 🌧️' — or invent your own!"
         )
-        playlist = None
+        playlist_name = None
         col1, col2, col3 = st.columns([1, 2, 1])
         with col1:
             st.empty()
@@ -320,11 +320,11 @@ class App:
                         )
                         st.error(f"Error details: {e}")
                         reason = "Please check your Spotify connection or your open AI api key and try again."
-                        playlist = None
+                        playlist_name = None
                         message = "Please check your Spotify connection or your open AI api key and try again."
         with col3:
             st.empty()
-        if  playlist is not None:
+        if  playlist_name is not None:
             st.success(reason)
             st.markdown(
                 "Note: This playlist might start playing directly in the device that you last played so please check your app. "
