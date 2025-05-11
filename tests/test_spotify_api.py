@@ -7,10 +7,12 @@ from src.spotify_api_connector import SpotifyApiConnector
 dotenv.load_dotenv()
 
 
+@pytest.mark.integration
 class TestSpotifyApi:
     connector = SpotifyApiConnector(
         client_id=os.getenv("SPOTIPY_CLIENT_ID"),
-        client_secret=os.getenv("SPOTIPY_CLIENT_SECRET"), local=True
+        client_secret=os.getenv("SPOTIPY_CLIENT_SECRET"),
+        local=True,
     )
     playlis_id = "10jvPmRLMzbZlE7MwLSU5M"
     song_uri = "spotify:track:5zheSFviZNgeZLvZCOxQnE"
@@ -18,7 +20,7 @@ class TestSpotifyApi:
     def test_get_user_info(self):
         me = self.connector.get_user_info()
         assert "@" in me["email"]
-        
+
     def test_get_auth_url(self):
         auth_url = self.connector.get_auth_url()
         assert "code" in auth_url
@@ -53,21 +55,17 @@ class TestSpotifyApi:
         is_playing = self.connector.is_currently_playing()
         assert is_playing
 
-    @pytest.mark.slow
     def test_play_song(self):
         self.connector.play_song(self.song_uri)
 
-    @pytest.mark.slow
     def test_add_song_to_queue(self):
         self.connector.add_songs_to_queue(self.song_uri)
 
-    @pytest.mark.slow
     def test_create_playlist(self):
         self.connector.create_playlist("test playlist")
         playlists = self.connector.get_user_playlists()
         assert "test playlist" in [playlist.name for playlist in playlists]
 
-    @pytest.mark.slow
     def test_add_songs_to_playlist(self):
         palaylist = self.connector.get_playlist("test playlist")
         songs = [
@@ -76,7 +74,7 @@ class TestSpotifyApi:
             "Lana del Rey Summertime Sadness",
         ]
         songs = [self.connector.search_for_song(query=song)[0] for song in songs]
-        self.connector.add_songs_to_playlist(self.client, palaylist.id, songs)
+        self.connector.add_songs_to_playlist(palaylist.id, songs)
         assert "test playlist" in [
-            playlist.name for playlist in self.connector.get_user_playlists(self.client)
+            playlist.name for playlist in self.connector.get_user_playlists()
         ]

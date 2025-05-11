@@ -5,7 +5,6 @@ import os
 from agent.auralis import Auralis
 from src.spotify_api_connector import SpotifyApiConnector
 from src.weather_api_connector import WeatherApiConnector
-from agent.language_builder import AgentLanguage
 
 dotenv.load_dotenv()
 
@@ -18,7 +17,7 @@ class TestAuralis:
     )
     auralis = Auralis(spotify_connector, os.getenv("OPENAI_API_KEY"))
     weather_connector = WeatherApiConnector(os.getenv("WEATHER"))
-    language_builder = AgentLanguage()
+
 
     def test_registry(self):
         registry = self.auralis.registry

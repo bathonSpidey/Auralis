@@ -45,10 +45,6 @@ class SpotifyApiConnector:
             self.client = self.connect()
         else:
             self.client = None
-        # if not streamlit_cloud:
-        #     self.client = self.connect()
-        # else:
-        #     self.client = None
 
     def get_auth_url(self):
         """
@@ -131,14 +127,14 @@ class SpotifyApiConnector:
         return Playlist(**playlist_name)
 
     def get_playlist(self, playlist_name):
-        playlists = self.get_user_playlists(self.client)
+        playlists = self.get_user_playlists()
         try:
             playlist = [
                 playlist for playlist in playlists if playlist.name == playlist_name
             ][0]
         except IndexError:
-            self.create_playlist(self.client, playlist_name)
-            playlists = self.get_user_playlists(self.client)
+            self.create_playlist(playlist_name)
+            playlists = self.get_user_playlists()
             playlist = [
                 playlist for playlist in playlists if playlist.name == playlist_name
             ][0]
