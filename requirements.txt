@@ -4,3 +4,6 @@ spotipy
 openai
 python-dotenv
 timezonefinder
+pre-commit
+ruff
+pytest

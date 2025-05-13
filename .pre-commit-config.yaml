@@ -1,0 +1,16 @@
+repos:
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.24.2
+    hooks:
+      - id: gitleaks
+        name: Checking secrets
+
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev:  v0.11.9  # Check for the latest version
+    hooks:
+      - id: ruff
+        args: ["--fix"] 
+        types_or: [python]
+      - id: ruff-format
+        types_or: [python]

@@ -4,6 +4,7 @@ from agent.tool_essentials import ToolRegistry
 class TestToolEssentials:
     def test_register_tool(self):
         registry = ToolRegistry()
+
         @registry.register(description="Adds two numbers", tags=["math", "arithmetic"])
         def add(a: int, b: int) -> int:
             """
@@ -16,7 +17,7 @@ class TestToolEssentials:
             """
 
             return a + b
-        
+
         @registry.register(description="Says hello", tags=["text"])
         def hello(name: str) -> str:
             """
@@ -27,7 +28,5 @@ class TestToolEssentials:
                 str: A greeting message
             """
             return f"Hello {name}"
+
         assert registry.tools["add"]["description"] == "Adds two numbers"
-        
-        
-        

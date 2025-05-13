@@ -10,9 +10,9 @@ dotenv.load_dotenv()
 
 
 @pytest.mark.skipif(
-    not os.getenv("SPOTIPY_CLIENT_ID"),
-    reason="SPOTIPY_CLIENT_ID not set"
+    not os.getenv("SPOTIPY_CLIENT_ID"), reason="SPOTIPY_CLIENT_ID not set"
 )
+@pytest.mark.integration
 class TestAuralis:
     spotify_connector = SpotifyApiConnector(
         client_id=os.getenv("SPOTIPY_CLIENT_ID"),
@@ -21,7 +21,6 @@ class TestAuralis:
     )
     auralis = Auralis(spotify_connector, os.getenv("OPENAI_API_KEY"))
     weather_connector = WeatherApiConnector(os.getenv("WEATHER"))
-
 
     def test_registry(self):
         registry = self.auralis.registry

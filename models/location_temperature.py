@@ -2,6 +2,7 @@ from pydantic import BaseModel, Field, field_serializer
 from models.location_weather import Weather
 from typing import List
 
+
 class Temperature(BaseModel):
     temperature: float = Field(..., alias="temp")
     feels_like: float
@@ -14,7 +15,7 @@ class Temperature(BaseModel):
     wind_speed: float
     wind_deg: int
     weather: List[Weather]
-    
-    @field_serializer('weather')
+
+    @field_serializer("weather")
     def serialize_weather(self, weather):
         return weather[0]

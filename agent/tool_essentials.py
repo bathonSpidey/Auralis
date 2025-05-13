@@ -38,19 +38,17 @@ class ToolRegistry:
         tags: List[str] = None,
     ) -> Dict[str, Any]:
         tool_name = tool_name or func.__name__
-        description = description or (func.__doc__.strip() if func.__doc__ else "No description provided.")
+        description = description or (
+            func.__doc__.strip() if func.__doc__ else "No description provided."
+        )
 
         if parameters_override is None:
             signature = inspect.signature(func)
             type_hints = get_type_hints(func)
-            args_schema = {
-                "type": "object",
-                "properties": {},
-                "required": []
-            }
+            args_schema = {"type": "object", "properties": {}, "required": []}
 
             for param_name, param in signature.parameters.items():
-                if param_name in ["self","action_context", "action_agent"]:
+                if param_name in ["self", "action_context", "action_agent"]:
                     continue
 
                 def get_json_schema(param_type):
@@ -59,23 +57,22 @@ class ToolRegistry:
 
                     if origin is list or origin is List:
                         item_type = args[0] if args else str
-                        return {
-                            "type": "array",
-                            "items": get_json_schema(item_type)
-                        }
+                        return {"type": "array", "items": get_json_schema(item_type)}
                     elif origin is dict or origin is Dict:
                         key_type, val_type = args if args else (str, str)
                         return {
                             "type": "object",
-                            "additionalProperties": get_json_schema(val_type)
+                            "additionalProperties": get_json_schema(val_type),
                         }
                     elif param_type in [str, int, float, bool]:
-                        return {"type": {
-                            str: "string",
-                            int: "integer",
-                            float: "number",
-                            bool: "boolean"
-                        }[param_type]}
+                        return {
+                            "type": {
+                                str: "string",
+                                int: "integer",
+                                float: "number",
+                                bool: "boolean",
+                            }[param_type]
+                        }
                     else:
                         return {"type": "string"}
 
@@ -94,7 +91,7 @@ class ToolRegistry:
             "parameters": args_schema,
             "function": func,
             "terminal": terminal,
-            "tags": tags or []
+            "tags": tags or [],
         }
 
     def register(
@@ -103,7 +100,7 @@ class ToolRegistry:
         description: str = None,
         parameters_override: dict = None,
         terminal: bool = False,
-        tags: List[str] = None
+        tags: List[str] = None,
     ):
         def decorator(func: Callable):
             metadata = self._get_tool_metadata(
@@ -112,7 +109,7 @@ class ToolRegistry:
                 description=description,
                 parameters_override=parameters_override,
                 terminal=terminal,
-                tags=tags
+                tags=tags,
             )
 
             self._tools[metadata["tool_name"]] = {
@@ -120,7 +117,7 @@ class ToolRegistry:
                 "parameters": metadata["parameters"],
                 "function": metadata["function"],
                 "terminal": metadata["terminal"],
-                "tags": metadata["tags"]
+                "tags": metadata["tags"],
             }
 
             for tag in metadata["tags"]:

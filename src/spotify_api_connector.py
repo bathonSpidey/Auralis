@@ -39,7 +39,7 @@ class SpotifyApiConnector:
             redirect_uri=self.redirect_uri,
             scope=self.scope,
             cache_path=None,
-            state=state
+            state=state,
         )
         if local:
             self.client = self.connect()

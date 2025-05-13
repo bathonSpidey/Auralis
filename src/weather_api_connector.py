@@ -1,6 +1,7 @@
 from models.location import Location
 import datetime
-import pytz, timezonefinder
+import pytz
+import timezonefinder
 
 import requests
 
@@ -16,12 +17,14 @@ class WeatherApiConnector:
         response = requests.get(f"http://ip-api.com/json/{ip}")
         data = response.json()
         return Location(**data)
-    
+
     def encode_location(self, city_name):
-        response = requests.get(f"http://api.openweathermap.org/geo/1.0/direct?q={city_name}&appid={self.api_key}")
+        response = requests.get(
+            f"http://api.openweathermap.org/geo/1.0/direct?q={city_name}&appid={self.api_key}"
+        )
         data = response.json()[0]
         return Location(**data)
-    
+
     def encode_time(self, location):
         tf = timezonefinder.TimezoneFinder()
         timezone_str = tf.certain_timezone_at(lat=location.lat, lng=location.lon)

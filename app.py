@@ -324,7 +324,7 @@ class App:
                         message = "Please check your Spotify connection or your open AI api key and try again."
         with col3:
             st.empty()
-        if  playlist_name is not None:
+        if playlist_name is not None:
             st.success(reason)
             st.markdown(
                 "Note: This playlist might start playing directly in the device that you last played so please check your app. "
