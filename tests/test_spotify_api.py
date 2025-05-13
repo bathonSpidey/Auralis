@@ -1,12 +1,14 @@
 import pytest
 import dotenv
 import os
+import sys
 from src.spotify_api_connector import SpotifyApiConnector
 
 
 dotenv.load_dotenv()
 
 
+@pytest.mark.skipif(sys.platform == "unix", reason="windows only")
 @pytest.mark.skipif(
     not os.getenv("SPOTIPY_CLIENT_ID"), reason="SPOTIPY_CLIENT_ID not set"
 )

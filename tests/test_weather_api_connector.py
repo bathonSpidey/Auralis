@@ -1,10 +1,12 @@
 import os
 import pytest
+import sys
 
 
 from src.weather_api_connector import WeatherApiConnector
 
 
+@pytest.mark.skipif(sys.platform == "unix", reason="windows only")
 @pytest.mark.skipif(not os.getenv("WEATHER"), reason="WEATHER not set")
 @pytest.mark.integration
 class TestWeatherApiConnector:

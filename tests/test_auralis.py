@@ -1,6 +1,7 @@
 import dotenv
 import pytest
 import os
+import sys
 
 from agent.auralis import Auralis
 from src.spotify_api_connector import SpotifyApiConnector
@@ -9,6 +10,7 @@ from src.weather_api_connector import WeatherApiConnector
 dotenv.load_dotenv()
 
 
+@pytest.mark.skipif(sys.platform == "unix", reason="windows only")
 @pytest.mark.skipif(
     not os.getenv("SPOTIPY_CLIENT_ID"), reason="SPOTIPY_CLIENT_ID not set"
 )
