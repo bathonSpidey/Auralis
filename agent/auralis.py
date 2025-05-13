@@ -1,8 +1,8 @@
 from openai import OpenAI
 import json
 from datetime import datetime
+from agent.prompt_generator import PromptGenerator
 from agent.tool_essentials import ToolRegistry
-from models.goal import Goal
 from typing import List
 
 
@@ -14,11 +14,8 @@ class Auralis:
         self.base_url = self.supported_models[self.model]
         self.openai = OpenAI(api_key=self.openai_api_key,
                              base_url=self.base_url)
+        self.prompt_generator = PromptGenerator()
         self.spotify_connector = spotify_connector
-        self.goals = [
-            Goal(priority=1, name="Song of the moment", description="Suggests and plays a song in spotify based on user context"),
-            Goal(priority=2, name="Playlist generator", description="Generates a playlist in spotify with the given songs")
-        ]
         
     registry = ToolRegistry()
     supported_models = {"gemini-2.0-flash": "https://generativelanguage.googleapis.com/v1beta/openai/", "gpt-4.1": "https://api.openai.com/v1/",
@@ -81,18 +78,13 @@ class Auralis:
     def song_of_the_moment_suggestion(self, weather_connector=None, city=None):
         context = self.build_context(
             weather_connector=weather_connector, city=city)
-        system_prompt = "You are a Spotify song recommender. Given the user prompt, select a single song that best matches the mood, genre, and overall vibe described. Focus on interpreting the user's preferences from their prompt or context, but do not directly copy songs from the user context. If absolutely necessary for better personalization, you may select one song from the user's known favorites, but only if it strongly fits the situation. Choose songs creatively, considering a variety of artists from different countries and regions where appropriate."
         user_prompt = {
             "context": context
         }
         tools = self.registry.to_openai_tools()
         response = self.openai.chat.completions.create(
             model=self.model,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user",
-                    "content": f"Suggest a song based on my context: {json.dumps(user_prompt)}"},
-            ],
+            messages=self.prompt_generator.build_suggest_song_messages(user_prompt),
             tools=tools,
             temperature=0.7
         )
@@ -111,17 +103,12 @@ class Auralis:
         return tool_func(**arguments)
 
     def playlist_generator(self, user_prompt, weather_connector=None, city=None):
-        system_prompt = "You are a Spotify playlist manager. Given the user's prompt, generate a playlist with a fitting name.Focus primarily on the mood, genre preferences, and overall vibe inferred from the user prompt and context — but do not directly copy songs from the user context. If absolutely necessary to enhance personalization, you may include up to 4 songs from either the user's favorites or recently played, but only if they are a strong fit. Ensure the playlist duration is sufficient for a satisfying listening experience. Incorporate a variety of songs from different countries and regions  where appropriate to keep the playlist fresh and diverse. Do not include too many sogs from the same artist"
         tools = self.registry.to_openai_tools()
         context = self.build_context(weather_connector=weather_connector, city=city)
         try:
             response = self.openai.chat.completions.create(
                 model=self.model,
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user",
-                        "content": f"{user_prompt}. A bit about myself {json.dumps(context) if context else ''}"},
-                ],
+                messages=self.prompt_generator.build_playlist_messages(user_prompt, context),
                 tools=tools,
                 temperature=0.7
             )

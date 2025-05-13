@@ -1,9 +1,14 @@
 
 import os
+import pytest
 
 
 from src.weather_api_connector import WeatherApiConnector
 
+@pytest.mark.skipif(
+    not os.getenv("WEATHER"),
+    reason="WEATHER not set"
+)
 class TestWeatherApiConnector:
     def test_get_location(self):
         api_key = 'your_api_key'
