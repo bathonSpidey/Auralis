@@ -4,3 +4,5 @@ spotipy
 openai
 python-dotenv
 timezonefinder
+flake8 
+flake8-exact-duplicates
