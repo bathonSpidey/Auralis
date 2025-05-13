@@ -10,14 +10,13 @@ permissions:
   contents: read
 
 jobs:
-  streamlit:
+  scan:
+    name: gitleaks
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
-      - uses: streamlit/streamlit-app-action@v0.0.3
-        with:
-          app-path: app.py
-          ruff: true
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
