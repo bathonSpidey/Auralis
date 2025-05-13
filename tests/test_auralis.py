@@ -9,6 +9,10 @@ from src.weather_api_connector import WeatherApiConnector
 dotenv.load_dotenv()
 
 
+@pytest.mark.skipif(
+    not os.getenv("SPOTIPY_CLIENT_ID"),
+    reason="SPOTIPY_CLIENT_ID not set"
+)
 class TestAuralis:
     spotify_connector = SpotifyApiConnector(
         client_id=os.getenv("SPOTIPY_CLIENT_ID"),
