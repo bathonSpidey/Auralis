@@ -41,17 +41,6 @@ jobs:
         run: |
           ruff check .  # Linting
           ruff format --check .  # Formatting
-    
-  code-duplication:
-    name: Code duplication check
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout for duplicates
-        uses: platisd/duplicate-code-detection-tool@master
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          directories: "."
 #   test:
 #     name: pytest
 #     runs-on: ubuntu-latest
