@@ -1,5 +1,5 @@
 # 🎵 Auralis
-[![Auralis](https://github.com/bathonSpidey/Auralis/actions/workflows/streamlit-app.yml/badge.svg)](https://github.com/bathonSpidey/Auralis/actions/workflows/streamlit-app.yml)
+[![Auralis](https://github.com/bathonSpidey/Auralis/actions/workflows/streamlit-app.yml/badge.svg)](https://github.com/bathonSpidey/Auralis/actions/workflows/streamlit-app.yml) [![Bandit](https://github.com/bathonSpidey/Auralis/actions/workflows/bandit.yml/badge.svg)](https://github.com/bathonSpidey/Auralis/actions/workflows/bandit.yml)
 
 **Auralis** is an **Agentic AI** that generates personalized **songs** and **playlists** based on your mood, prompts, and environment.  
 It’s a fun project designed for anyone who wants to **learn, build, and explore Agentic AI** concepts!
