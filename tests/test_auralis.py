@@ -4,6 +4,7 @@ import os
 import sys
 
 from agent.auralis import Auralis
+from src.lastfm_api_connector import LastFmConnector
 from src.spotify_api_connector import SpotifyApiConnector
 from src.weather_api_connector import WeatherApiConnector
 
@@ -21,7 +22,8 @@ class TestAuralis:
         client_secret=os.getenv("SPOTIPY_CLIENT_SECRET"),
         local=True,
     )
-    auralis = Auralis(spotify_connector, os.getenv("OPENAI_API_KEY"))
+    lastfm_connector = LastFmConnector(os.getenv("LASTFM"))
+    auralis = Auralis(spotify_connector, os.getenv("OPENAI_API_KEY"), lastfm_connector)
     weather_connector = WeatherApiConnector(os.getenv("WEATHER"))
 
     def test_registry(self):

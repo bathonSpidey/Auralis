@@ -206,3 +206,7 @@ class SpotifyApiConnector:
         if not state:
             return False
         return state["is_playing"]
+
+    def get_todays_top_listen(self):
+        playlist = self.get_playlist("Today's Top Hits")
+        return playlist
