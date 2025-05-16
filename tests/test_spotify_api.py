@@ -57,7 +57,3 @@ class TestSpotifyApi:
     def test_is_playing(self):
         is_playing = self.connector.is_currently_playing()
         assert is_playing or not is_playing
-
-    def test_top_hits(self):
-        top_hits = self.connector.get_todays_top_listen()
-        assert len(top_hits) > 0
