@@ -1,5 +1,6 @@
 import requests
 from models.top import Top
+from requests.exceptions import RequestException, Timeout
 
 
 class LastFmConnector:
@@ -13,8 +14,17 @@ class LastFmConnector:
             "api_key": self.api_key,
             "format": "json",
         }
-        response = requests.get(self.url, params=params)
-        return [
-            Top(name=item["name"], artist_name=item["artist"]["name"])
-            for item in response.json()["tracks"]["track"]
-        ][:15]
+        try:
+            response = requests.get(self.url, params=params, timeout=5)
+            response.raise_for_status()
+            return [
+                Top(name=item["name"], artist_name=item["artist"]["name"])
+                for item in response.json()["tracks"]["track"]
+            ][:15]
+        except (RequestException, Timeout):
+            return [
+                Top(
+                    name="Could not be found",
+                    artist_name="Nothing is trending at the moment",
+                )
+            ]
