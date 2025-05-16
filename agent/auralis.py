@@ -7,13 +7,20 @@ from typing import List
 
 
 class Auralis:
-    def __init__(self, spotify_connector, openai_api_key, model="gemini-2.0-flash"):
+    def __init__(
+        self,
+        spotify_connector,
+        openai_api_key,
+        lastfm_connector,
+        model="gemini-2.0-flash",
+    ):
         self.openai_api_key = openai_api_key
         self.model = model
         self.base_url = self.supported_models[self.model]
         self.openai = OpenAI(api_key=self.openai_api_key, base_url=self.base_url)
         self.prompt_generator = PromptGenerator()
         self.spotify_connector = spotify_connector
+        self.lastfm_connector = lastfm_connector
 
     registry = ToolRegistry()
     supported_models = {
@@ -98,10 +105,14 @@ class Auralis:
         recent_songs = self.spotify_connector.recently_played()
         top_tracks = self.spotify_connector.users_top_tracks()
         playlists = self.spotify_connector.get_user_playlists()
+        top_songs = self.lastfm_connector.get_top_songs()
         return {
             "time_of_day": time_of_day,
             "season": season,
-            "recently_played_songs": [
+            "current_trending_songs_in_the world": [
+                item.model_dump() for item in top_songs
+            ],
+            "my_recently_played_songs": [
                 item.model_dump(exclude={"id", "uri"}) for item in recent_songs[:20]
             ],
             "my_top_tracks": [
