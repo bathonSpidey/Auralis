@@ -4,6 +4,7 @@ import os
 
 from agent.auralis import Auralis
 from st_cookies_manager import EncryptedCookieManager
+from src.lastfm_api_connector import LastFmConnector
 from src.spotify_api_connector import SpotifyApiConnector
 from src.weather_api_connector import WeatherApiConnector
 
@@ -15,6 +16,7 @@ class App:
         st.cache_data.clear()  # Clears the data cache
         st.cache_resource.clear()
         self.title = "Auralis 🎵"
+        self.lastfm_connector = LastFmConnector(os.getenv("LASTFM"))
         st.set_page_config(page_title=self.title, page_icon="🎧")
         self.spotify_connector = SpotifyApiConnector(
             os.getenv("SPOTIFY_CLIENT_ID"), os.getenv("SPOTIFY_CLIENT_SECRET")
@@ -258,7 +260,9 @@ class App:
                     with st.spinner("Finding the perfect song for you..."):
                         try:
                             auralis = Auralis(
-                                self.spotify_connector, self.openai_api_key
+                                self.spotify_connector,
+                                self.openai_api_key,
+                                self.lastfm_connector,
                             )
                             song_name, artist_name, reason = (
                                 auralis.song_of_the_moment_suggestion(
