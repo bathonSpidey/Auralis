@@ -80,6 +80,7 @@ Follow these simple steps:
    OPENAI_API_KEY="<your LLM API key>"
    WEATHER="<your weather API key (optional)>"
    COOKIES="<your cookie encryption key>"
+   LASTFM="<Last fm api key>"
    ```
 
 ---
@@ -93,7 +94,7 @@ Follow these simple steps:
 | **Gemini**      | Generating song recommendations & playlists         | [Google AI Studio](https://aistudio.google.com/prompts/new_chat)       |
 | **LM Studio**   | Generating song recommendations & playlists locally | [LM Studio](https://lmstudio.ai/)                                      |
 | **Weather API** | Location-based music suggestions                    | [WeatherAPI.com](https://openweathermap.org/api/one-call-3)            |
-
+| **Last FM** | Top trending songs                                      | [Last FM](https://www.last.fm/api/show/chart.getTopTracks)             
 ---
 
 # 🎧 Ready to create your perfect vibe?
