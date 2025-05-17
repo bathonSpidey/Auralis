@@ -312,7 +312,11 @@ class App:
             ):
                 with st.spinner("Creating your personalized playlist..."):
                     try:
-                        auralis = Auralis(self.spotify_connector, self.openai_api_key)
+                        auralis = Auralis(
+                            self.spotify_connector,
+                            self.openai_api_key,
+                            self.lastfm_connector,
+                        )
                         playlist_name, songs, reason = auralis.playlist_generator(
                             user_prompt=user_playlist_prompt,
                             weather_connector=self.weather_connector,
