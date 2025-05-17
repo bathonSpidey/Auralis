@@ -20,7 +20,7 @@ class LastFmConnector:
             return [
                 Top(name=item["name"], artist_name=item["artist"]["name"])
                 for item in response.json()["tracks"]["track"]
-            ][:15]
+            ][:20]
         except (RequestException, Timeout):
             return [
                 Top(

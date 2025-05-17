@@ -109,7 +109,7 @@ class Auralis:
         return {
             "time_of_day": time_of_day,
             "season": season,
-            "current_trending_songs_in_the world": [
+            "current_trending_songs_in_the_world": [
                 item.model_dump() for item in top_songs
             ],
             "my_recently_played_songs": [
