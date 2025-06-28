@@ -221,7 +221,7 @@ class App:
             )
             self.model = st.selectbox(
                 "Select Model",
-                ["gemini-2.0-flash", "gpt-4.1", "gpt-4o", "o4-mini", "local_lm_studio"],
+                ["gemini-2.5-flash", "gpt-4.1", "gpt-4o", "o4-mini", "local_lm_studio"],
                 index=0,
                 help="Choose your preferred AI model.",
             )
