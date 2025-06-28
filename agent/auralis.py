@@ -12,7 +12,7 @@ class Auralis:
         spotify_connector,
         openai_api_key,
         lastfm_connector,
-        model="gemini-2.0-flash",
+        model="gemini-2.5-flash",
     ):
         self.openai_api_key = openai_api_key
         self.model = model
@@ -24,7 +24,7 @@ class Auralis:
 
     registry = ToolRegistry()
     supported_models = {
-        "gemini-2.0-flash": "https://generativelanguage.googleapis.com/v1beta/openai/",
+        "gemini-2.5-flash": "https://generativelanguage.googleapis.com/v1beta/openai/",
         "gpt-4.1": "https://api.openai.com/v1/",
         "gpt-4o": "https://api.openai.com/v1/",
         "o4-mini": "https://api.openai.com/v1/",

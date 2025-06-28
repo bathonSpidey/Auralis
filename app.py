@@ -38,7 +38,7 @@ class App:
         self.model = (
             self.cookies.get("selected_model")
             if self.cookies.ready()
-            else "gemini-2.0-flash"
+            else "gemini-2.5-flash"
         )
         self.token_info = (
             self.cookies.get("token_info") if self.cookies.ready() else None
