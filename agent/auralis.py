@@ -11,7 +11,7 @@ class Auralis:
         self,
         spotify_connector,
         openai_api_key,
-        lastfm_connector,
+        scrapper=None,
         model="gemini-2.5-flash",
     ):
         self.openai_api_key = openai_api_key
@@ -20,11 +20,13 @@ class Auralis:
         self.openai = OpenAI(api_key=self.openai_api_key, base_url=self.base_url)
         self.prompt_generator = PromptGenerator()
         self.spotify_connector = spotify_connector
-        self.lastfm_connector = lastfm_connector
+        self.scrapper = scrapper
+        self.supported_countries = ["de", "us", "in", "jp"]
 
     registry = ToolRegistry()
     supported_models = {
         "gemini-2.5-flash": "https://generativelanguage.googleapis.com/v1beta/openai/",
+        "gemini-3-flash-preview": "https://generativelanguage.googleapis.com/v1beta/openai/",
         "gpt-4.1": "https://api.openai.com/v1/",
         "gpt-4o": "https://api.openai.com/v1/",
         "o4-mini": "https://api.openai.com/v1/",
@@ -105,22 +107,26 @@ class Auralis:
         recent_songs = self.spotify_connector.recently_played()
         top_tracks = self.spotify_connector.users_top_tracks()
         playlists = self.spotify_connector.get_user_playlists()
-        top_songs = self.lastfm_connector.get_top_songs()
+        all_charts = []
+        viral_charts = []
+        if self.scrapper:
+            for country in self.supported_countries:
+                all_charts.append(self.scrapper.get_trending_songs(country=country))
+                viral_charts.append(self.scrapper.get_viral_songs(country=country))
         return {
             "time_of_day": time_of_day,
             "season": season,
-            "current_trending_songs_in_the_world": [
-                item.model_dump() for item in top_songs
-            ],
             "my_recently_played_songs": [
-                item.model_dump(exclude={"id", "uri"}) for item in recent_songs[:20]
+                item.model_dump(exclude={"id", "uri"}) for item in recent_songs[:10]
             ],
             "my_top_tracks": [
-                item.model_dump(exclude={"id", "uri"}) for item in top_tracks[:13]
+                item.model_dump(exclude={"id", "uri"}) for item in top_tracks[:10]
             ],
             "my_playlists": [
                 item.model_dump(exclude={"id", "uri", "href"}) for item in playlists
             ],
+            "trending_charts": all_charts,
+            "viral_charts": viral_charts,
             "my_current_weather": weather.model_dump() if weather else None,
             "my_current_location": location.model_dump(exclude={"lat", "lon"})
             if location

@@ -17,7 +17,7 @@ class SpotifyApiConnector:
             client_secret (str): The client secret for the Spotify application.
         """
         if local:
-            self.redirect_uri = "http://localhost:8888/callback"
+            self.redirect_uri = "http://127.0.0.1:8501"
         else:
             self.redirect_uri = "https://auralis-7hhf8fgymxuwbpzyumhtcq.streamlit.app/"
         self.scope = (
@@ -107,6 +107,15 @@ class SpotifyApiConnector:
         """
         playlists = self.client.current_user_playlists()["items"]
         return [Playlist(**playlist) for playlist in playlists]
+
+    def get_user_country(self):
+        """
+        Gets the current user's country from the Spotify API.
+
+        Returns:
+            str: The country code of the current user.
+        """
+        return self.client.me().get("country", "US")
 
     def get_songs_from_playlist(self, playlist_id):
         songs = self.client.playlist_tracks(playlist_id)["items"]
@@ -206,7 +215,3 @@ class SpotifyApiConnector:
         if not state:
             return False
         return state["is_playing"]
-
-    def get_todays_top_listen(self):
-        playlist = self.get_playlist("Today's Top Hits")
-        return playlist

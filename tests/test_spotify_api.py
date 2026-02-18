@@ -57,3 +57,26 @@ class TestSpotifyApi:
     def test_is_playing(self):
         is_playing = self.connector.is_currently_playing()
         assert is_playing or not is_playing
+
+    def test_get_user_country(self):
+        country = self.connector.get_user_country()
+        assert len(country) == 2
+
+    def test_get_new_releases(self):
+        new_releases = self.connector.get_new_releases()
+        assert len(new_releases) > 0
+
+    def test_get_todays_playlists(self):
+        featured_playlists = self.connector.get_todays_top_listen()
+        assert len(featured_playlists) > 0
+
+    def test_get_recommendations(self):
+        recommendations = self.connector.get_recommendations(limit=5)
+        assert len(recommendations) == 5
+
+    def test_audio_features(self):
+        features = self.connector.get_audio_features_summary(
+            ["Thunder Imagine Dragons"]
+        )
+        assert len(features) == 1
+        assert features[0].uri == self.song_uri

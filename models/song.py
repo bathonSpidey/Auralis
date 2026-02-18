@@ -5,6 +5,7 @@ from typing import List
 
 
 class Song(BaseItem):
+    id: str
     uri: str
     artists: List[Artist]
 
