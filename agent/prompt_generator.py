@@ -13,7 +13,7 @@ class PromptGenerator:
             "- Read the pattern of what he/she has been listening to, but suggest something that is a meaningful departure from that pattern, to help them discover new music.\n"
             "- You may include at  one song from their known favorites, only if it strongly fits.\n"
             "- Explore diverse artists from different countries and regions to help the user discover new music.\n"
-            "- Consider current_trending_songs_in_the_world as a source of fresh discovery, but only if they fit the occasion.\n"
+            "- Consider current_trending_songs and viral songs as a source of fresh discovery, but only if they fit the occasion.\n"
             "- Each suggestion should feel meaningfully different from what was suggested before."
         )
         self.playlist_system_prompt = (
@@ -23,6 +23,7 @@ class PromptGenerator:
             "- You may include up to 4 songs from the user's favorites or recently played, only if they are a strong fit.\n"
             "- Ensure the playlist is long enough for a satisfying listening session and also occasions where the user wants to explore something new.\n"
             "- Incorporate variety — different countries, regions, eras, and sub-genres.\n"
+            "- Consider current_trending_songs and viral songs as a source of fresh discovery, but only if they fit the occasion.\n"
         )
 
     def build_suggest_song_messages(
