@@ -25,4 +25,4 @@ class ChartData(BaseModel):
 
     def get_top_5_tracks(self):
         """Helper to return just the top 5 track objects"""
-        return [entry.metadata for entry in self.entries[:5]]
+        return [entry.metadata for entry in self.entries[:10]]

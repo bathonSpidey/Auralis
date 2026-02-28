@@ -24,6 +24,7 @@ class PromptGenerator:
             "- Ensure the playlist is long enough for a satisfying listening session and also occasions where the user wants to explore something new.\n"
             "- Incorporate variety — different countries, regions, eras, and sub-genres.\n"
             "- Consider current_trending_songs and viral songs as a source of fresh discovery, but only if they fit the occasion.\n"
+            "- Avoid Bad Bunny songs unless the user explicitly mentions him or his music style in their prompt or context, as he is a very common suggestion that may not always be the best fit for the user's specific mood or occasion.\n"
         )
 
     def build_suggest_song_messages(
