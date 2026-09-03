@@ -126,10 +126,19 @@ class App:
                 " color:#fff; margin-bottom:0.3rem;'>⚙️ Settings</p>",
                 unsafe_allow_html=True,
             )
-            st.markdown(
-                f"<p style='color:#666677; font-size:0.82rem; margin-top:0;'>Model: <span style='color:#1DB954; font-weight:600;'>{self.model}</span></p>",
-                unsafe_allow_html=True,
+            model_options = list(Auralis.supported_models.keys())
+            current_index = (
+                model_options.index(self.model) if self.model in model_options else 0
             )
+            selected_model = st.selectbox(
+                "Model", model_options, index=current_index, key="model_selector"
+            )
+            if selected_model != self.model:
+                self.model = selected_model
+                self.cookies["selected_model"] = selected_model
+                self.cookies.save()
+                st.rerun()
+            st.caption("Switch models anytime — your API key stays the same.")
             st.divider()
 
             location_on = st.checkbox("📍 Enable Location Suggestions", value=False)
