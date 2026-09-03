@@ -1,5 +1,7 @@
 from openai import OpenAI
+import copy
 import json
+import re
 from datetime import datetime
 from agent.prompt_generator import PromptGenerator
 from agent.tool_essentials import ToolRegistry
@@ -12,7 +14,7 @@ class Auralis:
         spotify_connector,
         openai_api_key,
         scrapper=None,
-        model="gemini-2.5-flash",
+        model="gemini-3.8-flash",
     ):
         self.openai_api_key = openai_api_key
         self.model = model
@@ -24,8 +26,46 @@ class Auralis:
         self.supported_countries = ["de", "us", "in", "jp"]
 
     registry = ToolRegistry()
+    _AVG_SONG_MINUTES = 3.5
+    _WORD_NUMBERS = {
+        "a": 1,
+        "an": 1,
+        "one": 1,
+        "two": 2,
+        "three": 3,
+        "four": 4,
+        "five": 5,
+        "six": 6,
+        "seven": 7,
+        "eight": 8,
+        "nine": 9,
+        "ten": 10,
+        "eleven": 11,
+        "twelve": 12,
+    }
+    _SPELLED_DURATION_PATTERN = re.compile(
+        r"\b("
+        + "|".join(_WORD_NUMBERS.keys())
+        + r")\b(\s*-?\s*(?:hours?|hrs?|minutes?|mins?)\b)",
+        re.I,
+    )
+    _DURATION_PATTERNS = [
+        (re.compile(r"(\d+(?:\.\d+)?)\s*-?\s*(?:hours?|hrs?|h)\b", re.I), 60),
+        (re.compile(r"(\d+(?:\.\d+)?)\s*-?\s*(?:minutes?|mins?)\b", re.I), 1),
+    ]
+    _LONG_SESSION_KEYWORDS = [
+        "road trip",
+        "roadtrip",
+        "long drive",
+        "party",
+        "all night",
+        "marathon",
+    ]
+    _SHORT_SESSION_KEYWORDS = ["quick", "short", "one song", "single song"]
     supported_models = {
-        "gemini-2.5-flash": "https://generativelanguage.googleapis.com/v1beta/openai/",
+        "gemini-3.8-flash": "https://generativelanguage.googleapis.com/v1beta/openai/",
+        "gemini-3.7-flash": "https://generativelanguage.googleapis.com/v1beta/openai/",
+        "gemini-3.6-flash": "https://generativelanguage.googleapis.com/v1beta/openai/",
         "gemini-3-flash-preview": "https://generativelanguage.googleapis.com/v1beta/openai/",
         "gpt-4.1": "https://api.openai.com/v1/",
         "gpt-4o": "https://api.openai.com/v1/",
@@ -113,6 +153,9 @@ class Auralis:
             for country in self.supported_countries:
                 all_charts.append(self.scrapper.get_trending_songs(country=country))
                 viral_charts.append(self.scrapper.get_viral_songs(country=country))
+        genre_distribution = self._get_recent_genre_distribution(
+            recent_songs[:10] + top_tracks[:10]
+        )
         return {
             "time_of_day": time_of_day,
             "season": season,
@@ -125,6 +168,7 @@ class Auralis:
             "my_playlists": [
                 item.model_dump(exclude={"id", "uri", "href"}) for item in playlists
             ],
+            "my_recent_genre_distribution": genre_distribution,
             "trending_charts": all_charts,
             "viral_charts": viral_charts,
             "my_current_weather": weather.model_dump() if weather else None,
@@ -132,6 +176,45 @@ class Auralis:
             if location
             else None,
         }
+
+    def _get_recent_genre_distribution(self, songs):
+        artist_uris = {song.artists[0].uri for song in songs if song.artists}
+        if not artist_uris or not hasattr(self.spotify_connector, "get_artists_genres"):
+            return {}
+        genre_counts = {}
+        for genres in self.spotify_connector.get_artists_genres(
+            list(artist_uris)
+        ).values():
+            for genre in genres:
+                genre_counts[genre] = genre_counts.get(genre, 0) + 1
+        return dict(
+            sorted(genre_counts.items(), key=lambda item: item[1], reverse=True)[:8]
+        )
+
+    def _normalize_spelled_numbers(self, text: str) -> str:
+        def replace(match):
+            word = match.group(1).lower()
+            number = self._WORD_NUMBERS.get(word)
+            return f"{number}{match.group(2)}" if number else match.group(0)
+
+        return self._SPELLED_DURATION_PATTERN.sub(replace, text)
+
+    def _estimate_target_song_count(self, user_prompt: str):
+        user_prompt = self._normalize_spelled_numbers(user_prompt)
+        total_minutes = 0
+        found = False
+        for pattern, minutes_per_unit in self._DURATION_PATTERNS:
+            for match in pattern.finditer(user_prompt):
+                total_minutes += float(match.group(1)) * minutes_per_unit
+                found = True
+        if found and total_minutes > 0:
+            return max(5, round(total_minutes / self._AVG_SONG_MINUTES))
+        lowered = user_prompt.lower()
+        if any(keyword in lowered for keyword in self._SHORT_SESSION_KEYWORDS):
+            return 8
+        if any(keyword in lowered for keyword in self._LONG_SESSION_KEYWORDS):
+            return 25
+        return None
 
     def song_of_the_moment_suggestion(self, weather_connector=None, city=None):
         context = self.build_context(weather_connector=weather_connector, city=city)
@@ -158,13 +241,20 @@ class Auralis:
         return tool_func(**arguments)
 
     def playlist_generator(self, user_prompt, weather_connector=None, city=None):
-        tools = self.registry.to_openai_tools()
+        tools = copy.deepcopy(self.registry.to_openai_tools())
         context = self.build_context(weather_connector=weather_connector, city=city)
+        target_song_count = self._estimate_target_song_count(user_prompt)
+        if target_song_count:
+            for tool in tools:
+                if tool["function"]["name"] == "generate_playlist":
+                    tool["function"]["parameters"]["properties"]["songs"][
+                        "minItems"
+                    ] = max(5, target_song_count - 3)
         try:
             response = self.openai.chat.completions.create(
                 model=self.model,
                 messages=self.prompt_generator.build_playlist_messages(
-                    user_prompt, context
+                    user_prompt, context, target_song_count
                 ),
                 tools=tools,
                 temperature=0.7,
@@ -174,4 +264,4 @@ class Auralis:
                 for tool_call in message.tool_calls:
                     return self.call_function(tool_call)
         except Exception as e:
-            return {}, e.message
+            return {}, [], str(e)

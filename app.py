@@ -49,7 +49,9 @@ class App:
             st.stop()
 
         self.openai_api_key = self.cookies.get("openai_api_key") or None
-        self.model = self.cookies.get("selected_model") or "gemini-2.5-flash"
+        self.model = self.cookies.get("selected_model") or next(
+            iter(Auralis.supported_models)
+        )
         self.weather_connector = None
         self.city = None
         self.user = "Guest"
@@ -171,14 +173,7 @@ class App:
             )
             model = st.selectbox(
                 "Model",
-                [
-                    "gemini-2.5-flash",
-                    "gemini-3-flash-preview",
-                    "gpt-4.1",
-                    "gpt-4o",
-                    "o4-mini",
-                    "local_lm_studio",
-                ],
+                list(Auralis.supported_models.keys()),
                 label_visibility="collapsed",
             )
             if st.button("Save & Continue →", use_container_width=True):

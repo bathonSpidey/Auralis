@@ -125,6 +125,26 @@ class SpotifyApiConnector:
         songs = self.client.search(q=query, type="track")["tracks"]["items"]
         return [Song(**song) for song in songs]
 
+    def get_artists_genres(self, artist_uris):
+        """
+        Batch-fetches genres for a list of artist URIs.
+
+        Args:
+            artist_uris (list[str]): Spotify artist URIs (spotify:artist:{id}).
+
+        Returns:
+            dict[str, list[str]]: Artist URI -> list of genres.
+        """
+        ids = [uri.split(":")[-1] for uri in artist_uris if uri]
+        genres_by_uri = {}
+        for i in range(0, len(ids), 50):
+            batch = ids[i : i + 50]
+            result = self.client.artists(batch)
+            for artist in result["artists"]:
+                if artist:
+                    genres_by_uri[artist["uri"]] = artist.get("genres", [])
+        return genres_by_uri
+
     def get_all_user_devices(self):
         devices = self.client.devices()
         return [Device(**device) for device in devices["devices"]]
