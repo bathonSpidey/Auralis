@@ -1,11 +1,7 @@
+# What the service needs on the Pi (kept small on purpose).
 pydantic
 requests
 python-dotenv
-timezonefinder
-pre-commit
-ruff
-pytest
 mcp
 fastapi
 uvicorn
-httpx

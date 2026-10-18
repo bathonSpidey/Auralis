@@ -1,0 +1,7 @@
+-r requirements.txt
+-r requirements-weather.txt
+pytest
+httpx
+bandit
+pre-commit
+ruff==0.11.9

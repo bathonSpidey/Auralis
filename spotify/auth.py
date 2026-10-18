@@ -21,7 +21,9 @@ from urllib.parse import parse_qs, urlencode, urlparse
 import requests
 
 AUTH_URL = "https://accounts.spotify.com/authorize"
-TOKEN_URL = "https://accounts.spotify.com/api/token"
+TOKEN_URL = (
+    "https://accounts.spotify.com/api/token"  # a URL, not a password  # nosec B105
+)
 DEFAULT_REDIRECT_URI = "http://127.0.0.1:8501"
 SCOPES = (
     "playlist-read-private",

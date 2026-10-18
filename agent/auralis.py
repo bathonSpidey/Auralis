@@ -323,7 +323,9 @@ class Auralis:
         except Exception:
             try:
                 self.spotify.delete_playlist(playlist.uri)
-            except Exception:  # nosec B110 - best-effort rollback, original error re-raised
+            except (
+                Exception
+            ):  # best-effort rollback, original error re-raised  # nosec B110
                 pass
             raise
         playing = self._start_playlist(playlist.uri, device_id)
@@ -387,7 +389,9 @@ class Auralis:
             top_medium=self.spotify.top_tracks(limit=50, time_range="medium_term"),
             top_long=self.spotify.top_tracks(limit=50, time_range="long_term"),
             liked=liked,
-            liked_sample=random.sample(liked, min(LIKED_SAMPLE, len(liked))),
+            liked_sample=random.sample(
+                liked, min(LIKED_SAMPLE, len(liked))
+            ),  # variety, not security  # nosec B311
             playlists=self.spotify.user_playlists(),
         )
 

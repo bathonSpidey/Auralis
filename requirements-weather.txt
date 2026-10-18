@@ -1,0 +1,4 @@
+# Only for src/weather_api_connector.py, which the web service does not use yet.
+# Left off the Pi because timezonefinder pulls in numpy and h3.
+timezonefinder
+pytz

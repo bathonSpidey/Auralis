@@ -8,7 +8,7 @@ answer against Spotify stays in deterministic code.
 
 import json
 import os
-import subprocess  # nosec B404 - only ever runs the claude binary with a fixed arg list
+import subprocess  # only ever runs the claude binary with a fixed arg list  # nosec B404
 import tempfile
 import time
 from typing import Callable, Optional, Protocol, Sequence
@@ -41,7 +41,7 @@ class Advisor(Protocol):
 def subprocess_runner(env=None, cwd=None, timeout=1800) -> RunFn:
     def run(args: list, stdin: str) -> str:
         try:
-            proc = subprocess.run(  # nosec B603 - fixed arg list, no shell
+            proc = subprocess.run(  # fixed arg list, no shell  # nosec B603
                 args,
                 input=stdin,
                 capture_output=True,

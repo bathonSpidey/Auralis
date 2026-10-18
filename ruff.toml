@@ -1,0 +1,6 @@
+# Rules are explicit so a newer ruff cannot silently change what CI enforces.
+# The version is pinned in requirements-dev.txt and .pre-commit-config.yaml.
+target-version = "py310"
+
+[lint]
+select = ["E4", "E7", "E9", "F"]

@@ -197,7 +197,9 @@ class RunSession:
             except Exception:
                 try:
                     self.spotify.delete_playlist(playlist.uri)
-                except Exception:  # nosec B110 - best-effort rollback, original error re-raised
+                except (
+                    Exception
+                ):  # best-effort rollback, original error re-raised  # nosec B110
                     pass
                 raise
         _write_json(
