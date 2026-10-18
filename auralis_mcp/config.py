@@ -22,9 +22,10 @@ _PASSTHROUGH = (
 )
 
 
-def mcp_config(run_dir: Path, python: str = sys.executable) -> Dict:
+def mcp_config(run_dir: Path, stage: str, python: str = sys.executable) -> Dict:
     env = {key: os.environ[key] for key in _PASSTHROUGH if key in os.environ}
     env["AURALIS_RUN_DIR"] = str(run_dir)
+    env["AURALIS_STAGE"] = stage
     env["PYTHONPATH"] = str(REPO_ROOT)
     return {
         "mcpServers": {

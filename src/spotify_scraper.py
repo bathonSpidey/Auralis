@@ -4,9 +4,9 @@ from models.chart_data import ChartData
 
 
 class SpotifyScraper:
-    def __init__(self, bearer_token: str):
+    def __init__(self, bearer_token):
+        """`bearer_token` is a token string or a callable returning a fresh one."""
         self.top_charts_base_url = "https://charts-spotify-com-service.spotify.com/auth/v0/charts/regional-{country}-weekly/latest"
-        self.viral_charts_base_url = "https://charts-spotify-com-service.spotify.com/auth/v0/charts/viral-{country}-daily/latest"
         self.bearer_token = bearer_token
 
     def get_trending_songs(self, country: str = "de"):
@@ -15,29 +15,20 @@ class SpotifyScraper:
             "authority": "api-partner.spotify.com",
             "accept": "application/json",
             "app-platform": "Browser",
-            "authorization": f"Bearer {self.bearer_token}",
+            "authorization": f"Bearer {self._token()}",
             "spotify-app-version": "0.0.0.production",
         }
-        response = requests.get(url, headers=headers)
-        if response.status_code == 200:
-            results = self.process_response(response.json(), country=country)
-            return results
+        # Unofficial endpoint: any failure just means "no chart", never an error.
+        try:
+            response = requests.get(url, headers=headers, timeout=10)
+            if response.status_code == 200:
+                return self.process_response(response.json(), country=country)
+        except (requests.RequestException, ValueError):
+            pass
+        return None
 
-    def get_viral_songs(self, country: str = "de"):
-        url = self.viral_charts_base_url.format(country=country)
-        headers = {
-            "authority": "api-partner.spotify.com",
-            "accept": "application/json",
-            "app-platform": "Browser",
-            "authorization": f"Bearer {self.bearer_token}",
-            "spotify-app-version": "0.0.0.production",
-        }
-        response = requests.get(url, headers=headers)
-        if response.status_code == 200:
-            results = self.process_response(
-                response.json(), country=country, category="viral"
-            )
-            return results
+    def _token(self):
+        return self.bearer_token() if callable(self.bearer_token) else self.bearer_token
 
     def process_response(self, data: dict, country, category="trending"):
         data = ChartData.model_validate(data)

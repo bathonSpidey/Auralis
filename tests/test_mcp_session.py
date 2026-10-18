@@ -192,3 +192,46 @@ class TestVerifiedTracks:
         entry = read_verified(tmp_path)["spotify:track:1"]
         assert entry["artist"] == "Artist 1"
         assert entry["artist_uri"] == "spotify:artist:Artist 1"
+
+
+class TestSubmitSong:
+    def test_a_fresh_verified_song_is_accepted(self, tmp_path):
+        session, _ = make_session(tmp_path)
+        result = session.submit_song("spotify:track:1", "fits the mood")
+        assert result["ok"] is True
+        outcome = read_outcome(tmp_path)
+        assert outcome["kind"] == "song"
+        assert outcome["track"]["title"] == "Song 1"
+
+    def test_unverified_song_is_rejected(self, tmp_path):
+        session, _ = make_session(tmp_path)
+        result = session.submit_song("spotify:track:99", "why")
+        assert result["ok"] is False and "never returned" in result["violations"][0]
+
+    def test_excluded_and_familiar_songs_are_rejected_whatever_the_release(
+        self, tmp_path
+    ):
+        session, _ = make_session(
+            tmp_path,
+            excluded_tracks=pairs(1),
+            familiar_tracks=[["Anthem", "Band"]],
+        )
+        session.remember([song(41, "Band", "Anthem (Remastered 2011)")])
+        assert (
+            "suggested before"
+            in session.submit_song("spotify:track:1", "x")["violations"][0]
+        )
+        assert (
+            "already in"
+            in session.submit_song("spotify:track:41", "x")["violations"][0]
+        )
+        assert read_outcome(tmp_path) is None
+
+    def test_a_reason_is_required(self, tmp_path):
+        session, _ = make_session(tmp_path)
+        assert session.submit_song("spotify:track:1", " ")["ok"] is False
+
+    def test_only_one_song_per_run(self, tmp_path):
+        session, _ = make_session(tmp_path)
+        session.submit_song("spotify:track:1", "x")
+        assert session.submit_song("spotify:track:2", "x")["ok"] is False

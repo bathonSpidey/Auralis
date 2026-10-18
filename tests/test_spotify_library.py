@@ -1,3 +1,5 @@
+import random
+
 import pytest
 
 from spotify.client import SpotifyClient
@@ -179,6 +181,48 @@ class TestPlaylists:
         assert "/me/playlists" not in session.paths("POST")
 
 
+class TestLikedSongs:
+    @staticmethod
+    def liked_routes(total, per_page=50):
+        def respond(params, _):
+            if params["limit"] == 1:
+                return ok({"total": total, "items": []})
+            start = params["offset"]
+            count = min(params["limit"], total - start)
+            items = [
+                {"track": track(str(start + i), f"Liked {start + i}")}
+                for i in range(count)
+            ]
+            return ok({"total": total, "items": items})
+
+        return {("GET", "/me/tracks"): respond}
+
+    def test_empty_library(self):
+        spotify, session = make_spotify(self.liked_routes(0))
+        assert spotify.liked_songs_sample() == []
+        assert len(session.calls) == 1
+
+    def test_small_library_is_sampled_from_its_single_page(self):
+        spotify, session = make_spotify(self.liked_routes(12))
+        sample = spotify.liked_songs_sample(20)
+        assert len(sample) == 12
+        assert len(session.calls) == 2
+
+    def test_large_library_costs_three_requests_and_returns_the_requested_count(self):
+        spotify, session = make_spotify(self.liked_routes(5000))
+        sample = spotify.liked_songs_sample(20, rng=random.Random(7))
+        assert len(sample) == 20 and len({s.uri for s in sample}) == 20
+        assert len(session.calls) == 3
+        offsets = [c["params"]["offset"] for c in session.calls[1:]]
+        assert len(set(offsets)) == 2 and all(o % 50 == 0 for o in offsets)
+
+    def test_samples_differ_between_runs(self):
+        spotify, _ = make_spotify(self.liked_routes(5000))
+        first = {s.uri for s in spotify.liked_songs_sample(20, rng=random.Random(1))}
+        second = {s.uri for s in spotify.liked_songs_sample(20, rng=random.Random(2))}
+        assert first != second
+
+
 class TestPlayback:
     @staticmethod
     def device(device_id, kind, active=False):
@@ -187,7 +231,7 @@ class TestPlayback:
     def devices(self, *devices):
         return {("GET", "/me/player/devices"): ok({"devices": list(devices)})}
 
-    def test_prefers_the_active_device(self):
+    def test_uses_the_active_device(self):
         routes = {
             **self.devices(
                 self.device("pc", "Computer"), self.device("tv", "TV", True)
@@ -200,41 +244,36 @@ class TestPlayback:
         assert play["params"] == {"device_id": "tv"}
         assert play["json"] == {"uris": ["spotify:track:1"]}
 
-    def test_falls_back_to_a_computer_or_phone(self):
-        routes = {
-            **self.devices(self.device("tv", "TV"), self.device("phone", "Smartphone")),
-            ("PUT", "/me/player/play"): FakeResponse(204),
-        }
+    def test_a_chosen_device_is_used_without_looking_for_one(self):
+        routes = {("PUT", "/me/player/play"): FakeResponse(204)}
         spotify, session = make_spotify(routes)
-        spotify.play_playlist("spotify:playlist:p1")
-        assert session.calls[-1]["params"] == {"device_id": "phone"}
-        assert session.calls[-1]["json"] == {"context_uri": "spotify:playlist:p1"}
+        spotify.play_playlist("spotify:playlist:p1", device_id="kitchen")
+        assert session.paths() == ["/me/player/play"]
+        assert session.calls[0]["params"] == {"device_id": "kitchen"}
+        assert session.calls[0]["json"] == {"context_uri": "spotify:playlist:p1"}
 
-    def test_never_picks_an_arbitrary_speaker(self):
+    def test_nothing_active_and_nothing_chosen_means_no_playback(self):
         spotify, session = make_spotify(
-            self.devices(self.device("kitchen", "Speaker"), self.device("tv", "TV"))
+            self.devices(
+                self.device("kitchen", "Speaker"),
+                self.device("pc", "Computer"),
+                self.device("phone", "Smartphone"),
+            )
         )
-        with pytest.raises(NoDeviceError, match="SPOTIFY_DEVICE_NAME"):
+        with pytest.raises(NoDeviceError):
             spotify.play_track("spotify:track:1")
         assert session.paths("PUT") == []
 
-    def test_a_named_device_is_used_when_nothing_is_active(self, monkeypatch):
-        monkeypatch.setenv("SPOTIFY_DEVICE_NAME", "kitchen")
-        routes = {
-            **self.devices(
-                {**self.device("k", "Speaker"), "name": "Kitchen"},
-                self.device("t", "TV"),
-            ),
-            ("PUT", "/me/player/play"): FakeResponse(204),
-        }
-        spotify, session = make_spotify(routes)
-        spotify.play_track("spotify:track:1")
-        assert session.calls[-1]["params"] == {"device_id": "k"}
-
-    def test_no_device_raises(self):
+    def test_no_devices_at_all(self):
         spotify, _ = make_spotify(self.devices())
         with pytest.raises(NoDeviceError):
             spotify.play_track("spotify:track:1")
+
+    def test_active_device(self):
+        spotify, _ = make_spotify(
+            self.devices(self.device("a", "TV"), self.device("b", "Speaker", True))
+        )
+        assert spotify.active_device().id == "b"
 
     def test_device_without_volume_is_accepted(self):
         spotify, _ = make_spotify(self.devices(self.device("tv", "TV")))
@@ -258,3 +297,10 @@ class TestPlayback:
         )
         spotify.queue_track("spotify:track:1")
         assert session.calls[0]["params"] == {"uri": "spotify:track:1"}
+
+    def test_delete_playlist_uses_the_library_endpoint(self):
+        spotify, session = make_spotify(
+            {("DELETE", "/me/library"): FakeResponse(200, {})}
+        )
+        spotify.delete_playlist("spotify:playlist:p1")
+        assert session.calls[0]["params"] == {"uris": "spotify:playlist:p1"}

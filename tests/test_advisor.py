@@ -47,6 +47,32 @@ class TestClaudeAdvisor:
         assert "--no-session-persistence" in args
         assert "the prompt" not in args
 
+    def test_no_tools_unless_asked_for(self):
+        run = FakeRun(envelope(structured_output={}))
+        make_advisor(run).advise("s", "u", SCHEMA)
+        args, _ = run.calls[0]
+        assert "--mcp-config" not in args and "--allowedTools" not in args
+        assert "--max-budget-usd" not in args
+
+    def test_mcp_builtin_tools_permissions_and_budget_are_passed_through(self):
+        run = FakeRun(envelope(structured_output={}))
+        config = {"mcpServers": {"auralis": {"command": "python"}}}
+        make_advisor(run).advise(
+            "s",
+            "u",
+            SCHEMA,
+            mcp_config=config,
+            allowed_tools=("mcp__auralis", "WebSearch"),
+            builtin_tools=("WebSearch", "ToolSearch"),
+            max_budget_usd=4.0,
+        )
+        args, _ = run.calls[0]
+        assert args[args.index("--tools") + 1] == "WebSearch,ToolSearch"
+        assert json.loads(args[args.index("--mcp-config") + 1]) == config
+        assert "--strict-mcp-config" in args
+        assert args[args.index("--allowedTools") + 1] == "mcp__auralis,WebSearch"
+        assert args[args.index("--max-budget-usd") + 1] == "4.0"
+
     def test_retries_when_oauth_refresh_collides(self):
         refresh = envelope(is_error=True, result="Failed to refresh OAuth token")
         run = FakeRun(refresh, envelope(structured_output={"song": "x"}))

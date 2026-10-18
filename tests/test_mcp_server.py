@@ -49,11 +49,25 @@ class FakeSpotify:
         pass
 
 
-def make_server(tmp_path, **rules):
+def make_server(tmp_path, stage="curator", **rules):
     spotify = FakeSpotify()
     write_rules(tmp_path, RunRules(min_songs=2, max_songs=5, **rules))
     session = RunSession(spotify, tmp_path)
-    return create_server(spotify, session), spotify
+    return create_server(spotify, session, stage), spotify
+
+
+def tool_names(server):
+    return {tool.name for tool in asyncio.run(server.list_tools())}
+
+
+READ_TOOLS = {
+    "search_tracks",
+    "my_top_tracks",
+    "my_recent_tracks",
+    "my_playlists",
+    "playlist_tracks",
+    "artist_info",
+}
 
 
 def call(server, tool, **arguments):
@@ -64,25 +78,25 @@ def call(server, tool, **arguments):
     return json.loads(result.content[0].text)
 
 
-def test_exposes_the_expected_tools(tmp_path):
-    server, _ = make_server(tmp_path)
-    names = {tool.name for tool in asyncio.run(server.list_tools())}
-    assert names == {
-        "search_tracks",
-        "my_top_tracks",
-        "my_recent_tracks",
-        "my_playlists",
-        "playlist_tracks",
-        "artist_info",
-        "playlist_rules",
-        "submit_playlist",
-    }
+def test_the_scout_can_read_but_has_no_write_tool(tmp_path):
+    server, _ = make_server(tmp_path, stage="scout")
+    assert tool_names(server) == READ_TOOLS
 
 
-def test_claude_has_no_tool_that_can_delete_or_edit_playlists(tmp_path):
-    server, _ = make_server(tmp_path)
-    names = {tool.name for tool in asyncio.run(server.list_tools())}
-    assert not {n for n in names if "delete" in n or "remove" in n or "play_" in n}
+def test_the_curator_gets_exactly_one_write_tool(tmp_path):
+    server, _ = make_server(tmp_path, stage="curator")
+    assert tool_names(server) == READ_TOOLS | {"playlist_rules", "submit_playlist"}
+
+
+def test_the_song_stage_gets_exactly_one_write_tool(tmp_path):
+    server, _ = make_server(tmp_path, stage="song")
+    assert tool_names(server) == READ_TOOLS | {"submit_song"}
+
+
+def test_no_stage_can_delete_edit_or_play(tmp_path):
+    for stage in ("scout", "curator", "song"):
+        names = tool_names(make_server(tmp_path, stage=stage)[0])
+        assert not {n for n in names if "delete" in n or "remove" in n or "play_" in n}
 
 
 def test_search_describes_tracks_with_year(tmp_path):

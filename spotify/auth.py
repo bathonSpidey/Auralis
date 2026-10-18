@@ -27,6 +27,7 @@ SCOPES = (
     "playlist-read-private",
     "playlist-modify-private",
     "playlist-modify-public",
+    "user-library-read",
     "user-read-recently-played",
     "user-top-read",
     "user-read-playback-state",

@@ -203,6 +203,7 @@ class RunSession:
         _write_json(
             self.run_dir / "outcome.json",
             {
+                "kind": "playlist",
                 "name": name,
                 "description": description,
                 "dry_run": self.rules.dry_run,
@@ -223,3 +224,45 @@ class RunSession:
             "playlist_url": playlist.url if playlist else None,
             "track_count": len(uris),
         }
+
+    def submit_song(self, uri: str, reason: str) -> dict:
+        """The song-of-the-moment pick. Same gate idea as a playlist: the
+        track must be verified, not excluded, and not something the listener
+        already knows."""
+        if (self.run_dir / "outcome.json").exists():
+            return {
+                "ok": False,
+                "violations": ["A song was already chosen in this run."],
+            }
+        violations = []
+        if uri not in self.verified:
+            violations.append(
+                f"{uri} was never returned by a Spotify lookup in this run "
+                "(search for the track first)."
+            )
+        else:
+            key = self.key(uri)
+            if key in self._excluded:
+                violations.append(
+                    f"{self.label(uri)} was already suggested before or is disliked; "
+                    "choose a different song."
+                )
+            if key in self._familiar:
+                violations.append(
+                    f"{self.label(uri)} is already in the listener's recent, top or "
+                    "liked songs; choose a discovery."
+                )
+        if not reason.strip():
+            violations.append("Give a short reason for the choice.")
+        if violations:
+            return {"ok": False, "violations": violations}
+        _write_json(
+            self.run_dir / "outcome.json",
+            {
+                "kind": "song",
+                "dry_run": self.rules.dry_run,
+                "reason": reason,
+                "track": self.verified[uri],
+            },
+        )
+        return {"ok": True, "message": "Song chosen. You are done."}

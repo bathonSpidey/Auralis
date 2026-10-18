@@ -22,7 +22,16 @@ INSTRUCTIONS = (
 )
 
 
-def create_server(spotify: Spotify, session: RunSession) -> MCPServer:
+# Which stage of a run the server is for decides its write capability: the
+# scout (the only stage with web access) can write nothing.
+STAGE_SCOUT = "scout"
+STAGE_CURATOR = "curator"
+STAGE_SONG = "song"
+
+
+def create_server(
+    spotify: Spotify, session: RunSession, stage: str = STAGE_SCOUT
+) -> MCPServer:
     server = MCPServer("auralis", instructions=INSTRUCTIONS)
 
     def seen(songs) -> List[dict]:
@@ -69,30 +78,42 @@ def create_server(spotify: Spotify, session: RunSession) -> MCPServer:
         artist_uri looks like spotify:artist:..., as found in verified tracks."""
         return {"genres": spotify.artist_genres([artist_uri]).get(artist_uri, [])}
 
-    @server.tool()
-    def playlist_rules() -> dict:
-        """The rules submit_playlist enforces for this run."""
-        rules = session.rules
-        return {
-            "min_songs": rules.min_songs,
-            "max_songs": rules.max_songs,
-            "max_per_artist": rules.max_per_artist,
-            "familiar_tracks_allowed": max(
-                rules.familiar_allowance, int(rules.max_songs * rules.familiar_ratio)
-            ),
-            "note": (
-                "Songs from my_top_tracks / my_recent_tracks count as familiar. "
-                "Different releases of one song count as the same song."
-            ),
-        }
+    if stage == STAGE_CURATOR:
 
-    @server.tool()
-    def submit_playlist(name: str, description: str, uris: List[str]) -> dict:
-        """Create the playlist. This is your final action and works once per
-        run. `uris` are Spotify track URIs in play order, all obtained from the
-        lookup tools. If a rule is broken, nothing is created and the response
-        lists violations; fix them and submit again."""
-        return session.submit(name, description, uris)
+        @server.tool()
+        def playlist_rules() -> dict:
+            """The rules submit_playlist enforces for this run."""
+            rules = session.rules
+            return {
+                "min_songs": rules.min_songs,
+                "max_songs": rules.max_songs,
+                "max_per_artist": rules.max_per_artist,
+                "familiar_tracks_allowed": max(
+                    rules.familiar_allowance,
+                    int(rules.max_songs * rules.familiar_ratio),
+                ),
+                "note": (
+                    "Songs from my_top_tracks / my_recent_tracks count as familiar. "
+                    "Different releases of one song count as the same song."
+                ),
+            }
+
+        @server.tool()
+        def submit_playlist(name: str, description: str, uris: List[str]) -> dict:
+            """Create the playlist. This is your final action and works once per
+            run. `uris` are Spotify track URIs in play order, all obtained from
+            the lookup tools. If a rule is broken, nothing is created and the
+            response lists violations; fix them and submit again."""
+            return session.submit(name, description, uris)
+
+    if stage == STAGE_SONG:
+
+        @server.tool()
+        def submit_song(uri: str, reason: str) -> dict:
+            """Choose the song of the moment. This is your final action and
+            works once per run. `uri` must come from a lookup tool. If the song
+            is not allowed, the response lists why; choose another."""
+            return session.submit_song(uri, reason)
 
     return server
 
@@ -101,4 +122,5 @@ def main() -> None:
     dotenv.load_dotenv()
     run_dir = Path(os.environ["AURALIS_RUN_DIR"])
     spotify = Spotify.from_env()
-    create_server(spotify, RunSession(spotify, run_dir)).run()
+    stage = os.environ.get("AURALIS_STAGE", STAGE_SCOUT)
+    create_server(spotify, RunSession(spotify, run_dir), stage).run()

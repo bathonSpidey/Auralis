@@ -6,6 +6,7 @@ agent and, later, the MCP server sit on.
 """
 
 import os
+import random
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Sequence, Tuple
 
@@ -21,6 +22,7 @@ from spotify.auth import (
 from spotify.client import SpotifyClient, SpotifyError
 
 _SEARCH_PAGE = 10
+_LIKED_PAGE = 50
 _PLAYLIST_ADD_BATCH = 100
 _DESCRIPTION_LIMIT = 300
 
@@ -90,6 +92,24 @@ class Spotify:
         items = self.client.get_all(f"/playlists/{playlist_id}/items", max_items=limit)
         songs = [_to_song(item.get("item") or item.get("track")) for item in items]
         return [song for song in songs if song]
+
+    def liked_songs_sample(
+        self, count: int = 20, rng: random.Random = random
+    ) -> List[Song]:
+        """A random sample of the listener's liked songs, drawn from two random
+        pages so that a large library costs only three requests."""
+        total = (self.client.get("/me/tracks", {"limit": 1}) or {}).get("total", 0)
+        if not total:
+            return []
+        pages = -(-total // _LIKED_PAGE)
+        songs: List[Song] = []
+        for page in rng.sample(range(pages), min(2, pages)):
+            body = self.client.get(
+                "/me/tracks", {"limit": _LIKED_PAGE, "offset": page * _LIKED_PAGE}
+            )
+            songs += [_to_song(item.get("track")) for item in body.get("items", [])]
+        songs = _dedupe([song for song in songs if song])
+        return rng.sample(songs, min(count, len(songs)))
 
     def artist_genres(self, artist_uris: Sequence[str]) -> Dict[str, List[str]]:
         """One request per artist (no batch endpoint), cached for the process."""
@@ -193,38 +213,35 @@ class Spotify:
         body = self.client.get("/me/player/currently-playing")
         return bool(body and body.get("is_playing"))
 
-    def play_track(self, uri: str) -> None:
+    def active_device(self) -> Optional[Device]:
+        return next((d for d in self.devices() if d.is_active), None)
+
+    def play_track(self, uri: str, device_id: Optional[str] = None) -> None:
         self.client.put(
             "/me/player/play",
-            params={"device_id": self._device_id()},
+            params={"device_id": self._target_device(device_id)},
             json={"uris": [uri]},
         )
 
-    def play_playlist(self, uri: str) -> None:
+    def play_playlist(self, uri: str, device_id: Optional[str] = None) -> None:
         self.client.put(
             "/me/player/play",
-            params={"device_id": self._device_id()},
+            params={"device_id": self._target_device(device_id)},
             json={"context_uri": uri},
         )
 
-    def queue_track(self, uri: str) -> None:
-        self.client.post("/me/player/queue", params={"uri": uri})
+    def queue_track(self, uri: str, device_id: Optional[str] = None) -> None:
+        params = {"uri": uri}
+        if device_id:
+            params["device_id"] = device_id
+        self.client.post("/me/player/queue", params=params)
 
-    def _device_id(self) -> str:
-        """Active device, else a computer/phone, else the device named by
-        SPOTIFY_DEVICE_NAME. Never an arbitrary speaker: starting music in
-        some other room is worse than not playing."""
-        devices = self.devices()
-        for device in devices:
-            if device.is_active:
-                return device.id
-        preferred = (os.getenv("SPOTIFY_DEVICE_NAME") or "").strip().lower()
-        by_name = [d for d in devices if preferred and d.name.lower() == preferred]
-        personal = [d for d in devices if d.type.lower() in ("computer", "smartphone")]
-        chosen = (by_name or personal or [None])[0]
-        if chosen is None:
-            raise NoDeviceError(
-                "No active Spotify device; open Spotify somewhere or set "
-                "SPOTIFY_DEVICE_NAME"
-            )
-        return chosen.id
+    def _target_device(self, device_id: Optional[str]) -> str:
+        """The chosen device, else the one already active. Never an arbitrary
+        speaker: starting music in another room is worse than not playing."""
+        if device_id:
+            return device_id
+        active = self.active_device()
+        if active is None:
+            raise NoDeviceError("No active Spotify device and none was chosen")
+        return active.id
