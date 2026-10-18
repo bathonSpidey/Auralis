@@ -45,8 +45,8 @@ class FakeSpotify:
     def top_tracks(self, limit=20, time_range="medium_term"):
         return [make_song(f"Top-{time_range}", "Top Artist")]
 
-    def liked_songs_sample(self, count=20):
-        return [make_song("Liked", "Liked Artist")]
+    def liked_songs(self, limit=1000):
+        return [make_song(f"Liked{n}", f"Liked Artist {n}") for n in range(30)]
 
     def user_playlists(self):
         return []
@@ -169,7 +169,8 @@ class TestContext:
         assert context["my_recently_played_songs"][0]["name"] == "Recent"
         assert context["my_top_tracks_this_month"][0]["name"] == "Top-short_term"
         assert context["my_top_tracks_overall"][0]["name"] == "Top-medium_term"
-        assert context["my_liked_songs_sample"][0]["name"] == "Liked"
+        sample = context["my_liked_songs_sample"]
+        assert len(sample) == 20 and all(s["name"].startswith("Liked") for s in sample)
         assert context["my_current_weather"] is None
         assert "viral_charts" not in context
 
@@ -196,14 +197,25 @@ class TestLikedSongsAreOptional:
     def test_a_missing_scope_degrades_instead_of_failing(self, tmp_path, caplog):
         spotify = FakeSpotify()
 
-        def forbidden(count=20):
+        def forbidden(limit=1000):
             raise SpotifyError(403, "Insufficient client scope")
 
-        spotify.liked_songs_sample = forbidden
+        spotify.liked_songs = forbidden
         auralis, _, _ = make_auralis(tmp_path, spotify=spotify)
         context = auralis.build_context()
         assert context["my_liked_songs_sample"] == []
         assert "spotify.login" in caplog.text
+
+
+class TestLikedSongsAreKnown:
+    def test_every_liked_song_not_just_the_sample_counts_as_familiar(self, tmp_path):
+        spotify = FakeSpotify()
+        liked = [make_song(f"T{n}", f"Band {n}") for n in range(1, 13)]
+        spotify.liked_songs = lambda limit=1000: liked
+        auralis, _, advisor = make_auralis(tmp_path, spotify=spotify)
+        with pytest.raises(AuralisError):
+            auralis.playlist_generator("upbeat")
+        assert "at most 4" in advisor.submit_results[0]["violations"][0]
 
 
 class TestPlaylist:

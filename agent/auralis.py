@@ -1,4 +1,5 @@
 import logging
+import random
 import re
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -28,6 +29,7 @@ from spotify.library import NoDeviceError
 
 logger = logging.getLogger(__name__)
 
+LIKED_SAMPLE = 20
 CURATOR_BUDGET_USD = 3.0
 SONG_BUDGET_USD = 3.0
 
@@ -44,7 +46,8 @@ class Listening:
     top_short: List[Song] = field(default_factory=list)
     top_medium: List[Song] = field(default_factory=list)
     top_long: List[Song] = field(default_factory=list)
-    liked: List[Song] = field(default_factory=list)
+    liked: List[Song] = field(default_factory=list)  # all of them
+    liked_sample: List[Song] = field(default_factory=list)  # for the prompt
     playlists: List[Playlist] = field(default_factory=list)
 
     def familiar(self) -> List[Song]:
@@ -281,12 +284,14 @@ class Auralis:
 
     # ── context ─────────────────────────────────────────────────────────
     def _listen(self) -> Listening:
+        liked = self._liked_songs()
         return Listening(
             recent=self.spotify.recently_played(),
             top_short=self.spotify.top_tracks(limit=50, time_range="short_term"),
             top_medium=self.spotify.top_tracks(limit=50, time_range="medium_term"),
             top_long=self.spotify.top_tracks(limit=50, time_range="long_term"),
-            liked=self._liked_songs(),
+            liked=liked,
+            liked_sample=random.sample(liked, min(LIKED_SAMPLE, len(liked))),
             playlists=self.spotify.user_playlists(),
         )
 
@@ -294,7 +299,7 @@ class Auralis:
         """Liked songs enrich the profile but are not essential, so a failure
         (e.g. the login predates the user-library-read scope) only warns."""
         try:
-            return self.spotify.liked_songs_sample(20)
+            return self.spotify.liked_songs()
         except SpotifyError as e:
             logger.warning(
                 "Could not read liked songs (%s); run `python -m spotify.login` "
@@ -361,7 +366,7 @@ class Auralis:
                 s.model_dump(exclude=exclude) for s in listening.top_medium[:10]
             ],
             "my_liked_songs_sample": [
-                s.model_dump(exclude=exclude) for s in listening.liked
+                s.model_dump(exclude=exclude) for s in listening.liked_sample
             ],
             "my_playlists": [
                 p.model_dump(exclude={"id", "uri", "href"}) for p in listening.playlists

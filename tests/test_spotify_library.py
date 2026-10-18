@@ -1,5 +1,3 @@
-import random
-
 import pytest
 
 from spotify.client import SpotifyClient
@@ -183,44 +181,40 @@ class TestPlaylists:
 
 class TestLikedSongs:
     @staticmethod
-    def liked_routes(total, per_page=50):
+    def liked_routes(total):
         def respond(params, _):
-            if params["limit"] == 1:
-                return ok({"total": total, "items": []})
             start = params["offset"]
-            count = min(params["limit"], total - start)
+            count = max(0, min(params["limit"], total - start))
             items = [
                 {"track": track(str(start + i), f"Liked {start + i}")}
                 for i in range(count)
             ]
-            return ok({"total": total, "items": items})
+            more = "next" if start + count < total else None
+            return ok({"total": total, "items": items, "next": more})
 
         return {("GET", "/me/tracks"): respond}
 
     def test_empty_library(self):
-        spotify, session = make_spotify(self.liked_routes(0))
-        assert spotify.liked_songs_sample() == []
-        assert len(session.calls) == 1
+        spotify, _ = make_spotify(self.liked_routes(0))
+        assert spotify.liked_songs() == []
 
-    def test_small_library_is_sampled_from_its_single_page(self):
-        spotify, session = make_spotify(self.liked_routes(12))
-        sample = spotify.liked_songs_sample(20)
-        assert len(sample) == 12
-        assert len(session.calls) == 2
+    def test_reads_every_liked_song_across_pages(self):
+        spotify, session = make_spotify(self.liked_routes(213))
+        songs = spotify.liked_songs()
+        assert len(songs) == 213 and len({s.uri for s in songs}) == 213
+        assert len(session.calls) == 5
 
-    def test_large_library_costs_three_requests_and_returns_the_requested_count(self):
+    def test_a_huge_library_is_capped(self):
         spotify, session = make_spotify(self.liked_routes(5000))
-        sample = spotify.liked_songs_sample(20, rng=random.Random(7))
-        assert len(sample) == 20 and len({s.uri for s in sample}) == 20
+        assert len(spotify.liked_songs(limit=120)) == 120
         assert len(session.calls) == 3
-        offsets = [c["params"]["offset"] for c in session.calls[1:]]
-        assert len(set(offsets)) == 2 and all(o % 50 == 0 for o in offsets)
 
-    def test_samples_differ_between_runs(self):
-        spotify, _ = make_spotify(self.liked_routes(5000))
-        first = {s.uri for s in spotify.liked_songs_sample(20, rng=random.Random(1))}
-        second = {s.uri for s in spotify.liked_songs_sample(20, rng=random.Random(2))}
-        assert first != second
+    def test_local_files_and_unplayable_items_are_skipped(self):
+        items = [{"track": track("1", "One")}, {"track": None}]
+        spotify, _ = make_spotify(
+            {("GET", "/me/tracks"): ok({"items": items, "next": None})}
+        )
+        assert [s.name for s in spotify.liked_songs()] == ["One"]
 
 
 class TestPlayback:

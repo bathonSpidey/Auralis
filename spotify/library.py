@@ -6,7 +6,6 @@ agent and, later, the MCP server sit on.
 """
 
 import os
-import random
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Sequence, Tuple
 
@@ -22,7 +21,6 @@ from spotify.auth import (
 from spotify.client import SpotifyClient, SpotifyError
 
 _SEARCH_PAGE = 10
-_LIKED_PAGE = 50
 _PLAYLIST_ADD_BATCH = 100
 _DESCRIPTION_LIMIT = 300
 
@@ -93,23 +91,12 @@ class Spotify:
         songs = [_to_song(item.get("item") or item.get("track")) for item in items]
         return [song for song in songs if song]
 
-    def liked_songs_sample(
-        self, count: int = 20, rng: random.Random = random
-    ) -> List[Song]:
-        """A random sample of the listener's liked songs, drawn from two random
-        pages so that a large library costs only three requests."""
-        total = (self.client.get("/me/tracks", {"limit": 1}) or {}).get("total", 0)
-        if not total:
-            return []
-        pages = -(-total // _LIKED_PAGE)
-        songs: List[Song] = []
-        for page in rng.sample(range(pages), min(2, pages)):
-            body = self.client.get(
-                "/me/tracks", {"limit": _LIKED_PAGE, "offset": page * _LIKED_PAGE}
-            )
-            songs += [_to_song(item.get("track")) for item in body.get("items", [])]
-        songs = _dedupe([song for song in songs if song])
-        return rng.sample(songs, min(count, len(songs)))
+    def liked_songs(self, limit: int = 1000) -> List[Song]:
+        """The listener's liked songs, newest first (up to `limit`)."""
+        items = self.client.get_all("/me/tracks", max_items=limit)
+        return _dedupe(
+            [song for song in (_to_song(i.get("track")) for i in items) if song]
+        )
 
     def artist_genres(self, artist_uris: Sequence[str]) -> Dict[str, List[str]]:
         """One request per artist (no batch endpoint), cached for the process."""
