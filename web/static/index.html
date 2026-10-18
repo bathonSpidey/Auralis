@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Auralis</title>
+  <meta name="color-scheme" content="dark light">
+  <link rel="preload" href="/static/fonts/outfit.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+  <header class="top">
+    <div class="top-inner">
+      <a class="brand" href="#create" aria-label="Auralis home">
+        <span class="disc" aria-hidden="true"></span>
+        <span class="word">Aur<b>a</b>lis</span>
+      </a>
+      <nav class="tabs" role="tablist" aria-label="Sections">
+        <button class="tab" role="tab" id="tab-create" data-tab="create" aria-controls="view-create">Create</button>
+        <button class="tab" role="tab" id="tab-history" data-tab="history" aria-controls="view-history">History</button>
+        <button class="tab" role="tab" id="tab-taste" data-tab="taste" aria-controls="view-taste">Likes &amp; dislikes</button>
+      </nav>
+      <div class="status" id="status" aria-live="polite"></div>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <!-- Create -->
+    <section id="view-create" role="tabpanel" aria-labelledby="tab-create">
+      <div id="composer">
+        <div class="hero">
+          <h1>What should we <em>listen</em> to?</h1>
+          <p class="lede">Describe a moment. Auralis studies your taste, researches, and builds the playlist in your Spotify.</p>
+        </div>
+
+        <div class="setup">
+          <div class="field">
+            <label for="device">Play on</label>
+            <select id="device"><option value="">Don't play, just create</option></select>
+          </div>
+          <label class="switch" for="preview">
+            <input type="checkbox" id="preview" checked>
+            <span class="track" aria-hidden="true"></span>
+            <span>Show me before creating</span>
+          </label>
+        </div>
+
+        <div class="grid">
+          <form class="card" id="playlist-form">
+            <h2>Playlist</h2>
+            <p class="sub">Any mood, activity, era or place. Mention a length and it will fit.</p>
+            <label class="sr-only" for="prompt">Describe the playlist</label>
+            <textarea id="prompt" maxlength="600" placeholder="A one-hour focus session, instrumental but not boring"></textarea>
+            <div class="chips" id="examples"></div>
+            <div class="field">
+              <span class="label" id="depth-label">Research</span>
+              <div class="seg" id="depth" role="radiogroup" aria-labelledby="depth-label"></div>
+              <p class="hint" id="depth-hint"></p>
+            </div>
+            <div class="actions">
+              <button class="btn primary" type="submit" id="go">Create playlist</button>
+              <span class="kbd">Ctrl + Enter</span>
+            </div>
+          </form>
+
+          <div class="card sidecard">
+            <div>
+              <h2>Song of the moment</h2>
+              <p class="sub">One new song for right now, based on your taste, the time and the season.</p>
+              <div class="recent" id="recent"></div>
+            </div>
+            <div>
+              <label class="switch" for="song-web">
+                <input type="checkbox" id="song-web">
+                <span class="track" aria-hidden="true"></span>
+                <span>Look on the web too</span>
+              </label>
+              <div class="actions" style="margin-top:.4rem">
+                <button class="btn" type="button" id="go-song">Find my song</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div id="work" hidden aria-live="polite"></div>
+    </section>
+
+    <!-- History -->
+    <section id="view-history" role="tabpanel" aria-labelledby="tab-history" hidden>
+      <div class="section-head">
+        <div><div class="eyebrow">Everything Auralis made</div><h1 style="font-size:2rem;margin-top:.5rem">History</h1></div>
+      </div>
+      <div class="entries" id="entries"></div>
+      <div style="text-align:center;margin-top:1.2rem"><button class="btn" id="more" hidden>Show older</button></div>
+    </section>
+
+    <!-- Likes & dislikes -->
+    <section id="view-taste" role="tabpanel" aria-labelledby="tab-taste" hidden>
+      <div class="section-head">
+        <div>
+          <div class="eyebrow">Teaching Auralis your taste</div>
+          <h1 style="font-size:2rem;margin-top:.5rem">Likes &amp; dislikes</h1>
+          <p class="lede">A like means lean toward this sound. A dislike means steer away from songs like it, not never again. Songs you haven't rated are neutral. Change your mind any time.</p>
+        </div>
+      </div>
+      <div class="taste-grid" id="taste"></div>
+    </section>
+  </main>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <script src="/static/app.js"></script>
+</body>
+</html>

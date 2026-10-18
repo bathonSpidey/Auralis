@@ -4,7 +4,7 @@ import re
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import List, Optional, Sequence, Tuple
+from typing import Callable, List, Optional, Sequence, Tuple
 
 from agent.advisor import Advisor
 from agent.depth import PLANS, Depth
@@ -39,6 +39,14 @@ SONG_BUDGET_USD = 3.0
 
 class AuralisError(RuntimeError):
     pass
+
+
+Progress = Optional[Callable[[str], None]]
+
+
+def _report(progress: Progress, stage: str) -> None:
+    if progress:
+        progress(stage)
 
 
 @dataclass
@@ -125,6 +133,7 @@ class Auralis:
         device_id: Optional[str] = None,
         excluded: Sequence[Tuple[str, str]] = (),
         source: str = "web",
+        progress: Progress = None,
     ) -> PlaylistOutcome:
         """Scout (research, no write access) then curator (the one gated write).
 
@@ -133,6 +142,7 @@ class Auralis:
         prompts; repeats are otherwise allowed.
         """
         plan = PLANS[Depth(depth)]
+        _report(progress, "taste")
         listening = self._listen()
         context = self.build_context(weather_connector, city, listening)
         target = self._estimate_target_song_count(user_prompt)
@@ -149,6 +159,7 @@ class Auralis:
 
         with run_workspace(self.runs_dir) as run_dir:
             write_rules(run_dir, rules)
+            _report(progress, "scout")
             system, user = self.prompt_generator.scout(
                 user_prompt,
                 context,
@@ -176,6 +187,7 @@ class Auralis:
                     f"The scout found only {len(pool)} usable tracks; need {low}"
                 )
 
+            _report(progress, "curate")
             answer, outcome = None, None
             for attempt in (1, 2):
                 note = (
@@ -212,6 +224,7 @@ class Auralis:
             if not outcome:
                 raise AuralisError("The curator did not produce an accepted playlist")
 
+        _report(progress, "finish")
         playback = "none"
         if not dry_run and self._start_playlist(outcome["playlist_uri"], device_id):
             playback = "playing"
@@ -239,8 +252,10 @@ class Auralis:
         device_id: Optional[str] = None,
         excluded: Sequence[Tuple[str, str]] = (),
         source: str = "web",
+        progress: Progress = None,
     ) -> SongOutcome:
         plan = PLANS[Depth(depth)]
+        _report(progress, "taste")
         listening = self._listen()
         context = self.build_context(weather_connector, city, listening)
         rules = RunRules(
@@ -251,6 +266,7 @@ class Auralis:
         feedback = self._feedback()
         with run_workspace(self.runs_dir) as run_dir:
             write_rules(run_dir, rules)
+            _report(progress, "pick")
             outcome, answer = None, None
             for attempt in (1, 2):
                 note = (
@@ -278,6 +294,7 @@ class Auralis:
                     break
             if not outcome:
                 raise AuralisError("No song was chosen")
+        _report(progress, "finish")
         playback = "none" if dry_run else self._play_song(outcome["track"], device_id)
         result = SongOutcome(
             track=TrackInfo(**outcome["track"]),
@@ -286,6 +303,56 @@ class Auralis:
             dry_run=dry_run,
         )
         if self.store and not dry_run:
+            result.id = self.store.record_song(result, Depth(depth).value, source)
+        return result
+
+    def commit_playlist(
+        self,
+        preview: PlaylistOutcome,
+        prompt: str,
+        depth: Depth = Depth.AUTO,
+        device_id: Optional[str] = None,
+        source: str = "web",
+    ) -> PlaylistOutcome:
+        """Create a previewed playlist exactly as shown: no new research."""
+        if not preview.dry_run:
+            raise AuralisError("This playlist was already created")
+        playlist = self.spotify.create_playlist(preview.name, preview.reason)
+        try:
+            self.spotify.add_to_playlist(playlist.id, [t.uri for t in preview.tracks])
+        except Exception:
+            try:
+                self.spotify.delete_playlist(playlist.uri)
+            except Exception:  # nosec B110 - best-effort rollback, original error re-raised
+                pass
+            raise
+        playing = self._start_playlist(playlist.uri, device_id)
+        result = preview.model_copy(
+            update={
+                "playlist_url": playlist.url,
+                "playback": "playing" if playing else "none",
+                "dry_run": False,
+            }
+        )
+        if self.store:
+            result.id = self.store.record_playlist(
+                result, prompt, Depth(depth).value, source
+            )
+        return result
+
+    def commit_song(
+        self,
+        preview: SongOutcome,
+        depth: Depth = Depth.QUICK,
+        device_id: Optional[str] = None,
+        source: str = "web",
+    ) -> SongOutcome:
+        """Play and record a previewed song of the moment."""
+        if not preview.dry_run:
+            raise AuralisError("This song was already chosen")
+        playback = self._play_song(preview.track.model_dump(), device_id)
+        result = preview.model_copy(update={"playback": playback, "dry_run": False})
+        if self.store:
             result.id = self.store.record_song(result, Depth(depth).value, source)
         return result
 

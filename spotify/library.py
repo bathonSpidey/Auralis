@@ -64,6 +64,10 @@ class Spotify:
         auth = SpotifyAuth(client_id, redirect_uri, TokenStore())
         return cls(SpotifyClient(auth))
 
+    def logged_in(self) -> bool:
+        """Whether a Spotify login exists (reads the token file, no request)."""
+        return self.client.auth.store.load() is not None
+
     # ── listening history ───────────────────────────────────────────────
     def me(self) -> dict:
         return self.client.get("/me")

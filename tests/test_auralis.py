@@ -575,3 +575,94 @@ class TestHistoryAndFeedback:
             "Disliked, so steer away from songs like these and avoid these exact songs unless the request names them:\n- none"
             in user
         )
+
+
+class TestProgress:
+    def test_a_playlist_reports_its_stages_in_order(self, tmp_path):
+        auralis, _, _ = make_auralis(tmp_path)
+        stages = []
+        auralis.playlist_generator("upbeat", progress=stages.append)
+        assert stages == ["taste", "scout", "curate", "finish"]
+
+    def test_a_song_reports_its_stages_in_order(self, tmp_path):
+        auralis, _, _ = make_auralis(tmp_path)
+        stages = []
+        auralis.song_of_the_moment_suggestion(progress=stages.append)
+        assert stages == ["taste", "pick", "finish"]
+
+    def test_progress_is_optional(self, tmp_path):
+        make_auralis(tmp_path)[0].playlist_generator("upbeat")
+
+
+class TestCommittingAPreview:
+    def preview(self, tmp_path, **kwargs):
+        store = make_store(tmp_path)
+        auralis, spotify, advisor = make_auralis(tmp_path, store=store, **kwargs)
+        return (
+            auralis,
+            spotify,
+            advisor,
+            store,
+            auralis.playlist_generator("upbeat", dry_run=True),
+        )
+
+    def test_creates_exactly_the_preview_with_no_new_research(self, tmp_path):
+        auralis, spotify, advisor, store, preview = self.preview(tmp_path)
+        calls = len(advisor.calls)
+        result = auralis.commit_playlist(preview, "upbeat", Depth.DEEP)
+        assert len(advisor.calls) == calls  # Claude was not asked again
+        assert spotify.created == ["Drive"]
+        assert result.dry_run is False and result.playlist_url.endswith("/p1")
+        assert [t.uri for t in result.tracks] == [t.uri for t in preview.tracks]
+        [entry] = store.history()
+        assert entry["id"] == result.id and entry["prompt"] == "upbeat"
+        assert entry["depth"] == "deep"
+
+    def test_plays_on_the_chosen_device(self, tmp_path):
+        auralis, spotify, _, _, preview = self.preview(tmp_path)
+        result = auralis.commit_playlist(preview, "upbeat", device_id="kitchen")
+        assert result.playback == "playing"
+        assert spotify.played == [("playlist", "spotify:playlist:p1", "kitchen")]
+
+    def test_no_active_device_just_creates_it(self, tmp_path):
+        auralis, _, _, _, preview = self.preview(
+            tmp_path, spotify=FakeSpotify(has_device=False)
+        )
+        assert auralis.commit_playlist(preview, "upbeat").playback == "none"
+
+    def test_a_failed_add_rolls_the_playlist_back_and_records_nothing(self, tmp_path):
+        auralis, spotify, _, store, preview = self.preview(tmp_path)
+
+        def fail(playlist_id, uris):
+            raise RuntimeError("Spotify went away")
+
+        spotify.add_to_playlist = fail
+        with pytest.raises(RuntimeError, match="went away"):
+            auralis.commit_playlist(preview, "upbeat")
+        assert spotify.deleted == ["spotify:playlist:p1"]
+        assert store.history() == []
+
+    def test_a_playlist_that_already_exists_cannot_be_committed_again(self, tmp_path):
+        store = make_store(tmp_path)
+        auralis, spotify, _ = make_auralis(tmp_path, store=store)
+        real = auralis.playlist_generator("upbeat")
+        with pytest.raises(AuralisError, match="already created"):
+            auralis.commit_playlist(real, "upbeat")
+        assert spotify.created == ["Drive"]  # only the original
+
+    def test_a_previewed_song_is_played_and_recorded_on_commit(self, tmp_path):
+        store = make_store(tmp_path)
+        auralis, spotify, advisor = make_auralis(tmp_path, store=store)
+        preview = auralis.song_of_the_moment_suggestion(dry_run=True)
+        calls = len(advisor.calls)
+        result = auralis.commit_song(preview, Depth.QUICK, device_id="kitchen")
+        assert len(advisor.calls) == calls
+        assert result.dry_run is False and result.playback == "playing"
+        assert spotify.played == [("track", URIS[0], "kitchen")]
+        assert store.history()[0]["id"] == result.id
+
+    def test_a_chosen_song_cannot_be_committed_again(self, tmp_path):
+        auralis, _, _ = make_auralis(tmp_path)
+        real = auralis.song_of_the_moment_suggestion()
+        with pytest.raises(AuralisError, match="already"):
+            auralis.commit_song(real)
