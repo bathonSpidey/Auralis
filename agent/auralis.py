@@ -4,14 +4,15 @@ from typing import List, Optional
 
 from agent.advisor import Advisor
 from agent.prompt_generator import PromptGenerator
-from agent.schemas import PlaylistSuggestion, SongSuggestion
+from agent.schemas import PlaylistOutcome, PlaylistSuggestion, SongSuggestion
+from spotify.library import NoDeviceError
 
 
 class Auralis:
-    def __init__(self, spotify_connector, advisor: Advisor, scrapper=None):
+    def __init__(self, spotify, advisor: Advisor, scrapper=None):
         self.advisor = advisor
         self.prompt_generator = PromptGenerator()
-        self.spotify_connector = spotify_connector
+        self.spotify = spotify
         self.scrapper = scrapper
         self.supported_countries = ["de", "us", "in", "jp"]
 
@@ -53,15 +54,16 @@ class Auralis:
     _SHORT_SESSION_KEYWORDS = ["quick", "short", "one song", "single song"]
 
     def _play_or_queue(self, suggestion: SongSuggestion) -> None:
-        search_query = f"{suggestion.song_title} {suggestion.artist_name}"
-        matches = self.spotify_connector.search_for_song(search_query)
-        if not matches:
-            raise LookupError(f"No Spotify match for '{search_query}'")
-        song = matches[0]
-        if self.spotify_connector.is_currently_playing():
-            self.spotify_connector.add_songs_to_queue(song.uri)
+        song = self.spotify.find_track(suggestion.song_title, suggestion.artist_name)
+        if song is None:
+            raise LookupError(
+                f"No Spotify match for '{suggestion.song_title}' by "
+                f"{suggestion.artist_name}"
+            )
+        if self.spotify.is_playing():
+            self.spotify.queue_track(song.uri)
         else:
-            self.spotify_connector.play_song(song.uri)
+            self.spotify.play_track(song.uri)
 
     def build_context(self, weather_connector=None, city=None):
         hour = datetime.now().hour
@@ -98,9 +100,9 @@ class Auralis:
             if month in [9, 10, 11]
             else "winter"
         )
-        recent_songs = self.spotify_connector.recently_played()
-        top_tracks = self.spotify_connector.users_top_tracks()
-        playlists = self.spotify_connector.get_user_playlists()
+        recent_songs = self.spotify.recently_played()
+        top_tracks = self.spotify.top_tracks()
+        playlists = self.spotify.user_playlists()
         all_charts = []
         viral_charts = []
         if self.scrapper:
@@ -133,12 +135,10 @@ class Auralis:
 
     def _get_recent_genre_distribution(self, songs):
         artist_uris = {song.artists[0].uri for song in songs if song.artists}
-        if not artist_uris or not hasattr(self.spotify_connector, "get_artists_genres"):
+        if not artist_uris:
             return {}
         genre_counts = {}
-        for genres in self.spotify_connector.get_artists_genres(
-            list(artist_uris)
-        ).values():
+        for genres in self.spotify.artist_genres(list(artist_uris)).values():
             for genre in genres:
                 genre_counts[genre] = genre_counts.get(genre, 0) + 1
         return dict(
@@ -190,7 +190,7 @@ class Auralis:
 
     def playlist_generator(
         self, user_prompt, weather_connector=None, city=None
-    ) -> PlaylistSuggestion:
+    ) -> PlaylistOutcome:
         context = self.build_context(weather_connector=weather_connector, city=city)
         target_song_count = self._estimate_target_song_count(user_prompt)
         schema = PlaylistSuggestion.model_json_schema()
@@ -202,7 +202,25 @@ class Auralis:
         suggestion = PlaylistSuggestion.model_validate(
             self.advisor.advise(system_prompt, prompt, schema)
         )
-        self.spotify_connector.generate_playlist_from_auralis(
-            suggestion.playlist_name, suggestion.songs
+        build = self.spotify.build_playlist(
+            suggestion.playlist_name,
+            [(song.song_title, song.artist_name) for song in suggestion.songs],
+            description=suggestion.reason,
         )
-        return suggestion
+        playing = self._start_playlist_if_idle(build.playlist.uri)
+        return PlaylistOutcome(
+            suggestion=suggestion,
+            playlist_url=build.playlist.url,
+            added=[f"{song.name} - {song.artists[0].name}" for song in build.added],
+            not_found=build.not_found,
+            playing=playing,
+        )
+
+    def _start_playlist_if_idle(self, playlist_uri: str) -> bool:
+        try:
+            if self.spotify.is_playing():
+                return False
+            self.spotify.play_playlist(playlist_uri)
+            return True
+        except NoDeviceError:
+            return False

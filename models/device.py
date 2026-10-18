@@ -1,3 +1,5 @@
+from typing import Optional
+
 from pydantic import BaseModel
 
 
@@ -6,4 +8,4 @@ class Device(BaseModel):
     is_active: bool
     name: str
     type: str
-    volume_percent: int
+    volume_percent: Optional[int] = None
