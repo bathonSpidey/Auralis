@@ -26,10 +26,13 @@ from models.song import Song
 from models.song_key import song_key
 from spotify.client import SpotifyError
 from spotify.library import NoDeviceError
+from store.history import Store
 
 logger = logging.getLogger(__name__)
 
 LIKED_SAMPLE = 20
+# Songs from this many latest creations may not come back (back to back only).
+RECENT_CREATIONS = 2
 CURATOR_BUDGET_USD = 3.0
 SONG_BUDGET_USD = 3.0
 
@@ -63,12 +66,14 @@ class Auralis:
         advisor: Advisor,
         scrapper=None,
         runs_dir: Optional[Path] = None,
+        store: Optional[Store] = None,
     ):
         self.advisor = advisor
         self.prompt_generator = PromptGenerator()
         self.spotify = spotify
         self.scrapper = scrapper
         self.runs_dir = runs_dir
+        self.store = store
         self.supported_countries = ["de", "us", "in", "jp"]
 
     _AVG_SONG_MINUTES = 3.5
@@ -119,10 +124,13 @@ class Auralis:
         dry_run: bool = False,
         device_id: Optional[str] = None,
         excluded: Sequence[Tuple[str, str]] = (),
+        source: str = "web",
     ) -> PlaylistOutcome:
         """Scout (research, no write access) then curator (the one gated write).
 
-        `excluded` are (title, artist) pairs that must never come back.
+        `excluded` are (title, artist) pairs that must not appear, on top of
+        the songs of the last few creations. Likes and dislikes only steer the
+        prompts; repeats are otherwise allowed.
         """
         plan = PLANS[Depth(depth)]
         listening = self._listen()
@@ -133,15 +141,23 @@ class Auralis:
             min_songs=low,
             max_songs=high,
             familiar_tracks=self._pairs(listening.familiar()),
-            excluded_tracks=[list(pair) for pair in excluded],
+            excluded_tracks=self._excluded(excluded),
             dry_run=dry_run,
         )
+        feedback = self._feedback()
         pool_size = min(80, max(20, 2 * (target or 15)))
 
         with run_workspace(self.runs_dir) as run_dir:
             write_rules(run_dir, rules)
             system, user = self.prompt_generator.scout(
-                user_prompt, context, plan.guidance, low, high, pool_size, target
+                user_prompt,
+                context,
+                plan.guidance,
+                low,
+                high,
+                pool_size,
+                target,
+                feedback,
             )
             report = ScoutReport.model_validate(
                 self.advisor.advise(
@@ -178,6 +194,7 @@ class Auralis:
                     rules.max_per_artist,
                     target,
                     note,
+                    feedback,
                 )
                 answer = CuratorAnswer.model_validate(
                     self.advisor.advise(
@@ -198,7 +215,7 @@ class Auralis:
         playback = "none"
         if not dry_run and self._start_playlist(outcome["playlist_uri"], device_id):
             playback = "playing"
-        return PlaylistOutcome(
+        result = PlaylistOutcome(
             name=outcome["name"],
             reason=answer.reason,
             research=report.interpretation,
@@ -207,6 +224,11 @@ class Auralis:
             playback=playback,
             dry_run=dry_run,
         )
+        if self.store and not dry_run:
+            result.id = self.store.record_playlist(
+                result, user_prompt, Depth(depth).value, source
+            )
+        return result
 
     def song_of_the_moment_suggestion(
         self,
@@ -216,15 +238,17 @@ class Auralis:
         dry_run: bool = False,
         device_id: Optional[str] = None,
         excluded: Sequence[Tuple[str, str]] = (),
+        source: str = "web",
     ) -> SongOutcome:
         plan = PLANS[Depth(depth)]
         listening = self._listen()
         context = self.build_context(weather_connector, city, listening)
         rules = RunRules(
             familiar_tracks=self._pairs(listening.familiar()),
-            excluded_tracks=[list(pair) for pair in excluded],
+            excluded_tracks=self._excluded(excluded),
             dry_run=dry_run,
         )
+        feedback = self._feedback()
         with run_workspace(self.runs_dir) as run_dir:
             write_rules(run_dir, rules)
             outcome, answer = None, None
@@ -235,7 +259,9 @@ class Auralis:
                     else "Your previous attempt ended without an accepted "
                     "submit_song. Choose a song and submit it now."
                 )
-                system, user = self.prompt_generator.song(context, plan.guidance, note)
+                system, user = self.prompt_generator.song(
+                    context, plan.guidance, note, feedback
+                )
                 answer = SongAnswer.model_validate(
                     self.advisor.advise(
                         system,
@@ -253,12 +279,15 @@ class Auralis:
             if not outcome:
                 raise AuralisError("No song was chosen")
         playback = "none" if dry_run else self._play_song(outcome["track"], device_id)
-        return SongOutcome(
+        result = SongOutcome(
             track=TrackInfo(**outcome["track"]),
             reason=answer.reason,
             playback=playback,
             dry_run=dry_run,
         )
+        if self.store and not dry_run:
+            result.id = self.store.record_song(result, Depth(depth).value, source)
+        return result
 
     # ── playback ────────────────────────────────────────────────────────
     def _start_playlist(self, uri: str, device_id: Optional[str]) -> bool:
@@ -380,6 +409,13 @@ class Auralis:
             if location
             else None,
         }
+
+    def _excluded(self, extra: Sequence[Tuple[str, str]]) -> List[List[str]]:
+        recent = self.store.recent_songs(RECENT_CREATIONS) if self.store else []
+        return [list(pair) for pair in (*extra, *recent)]
+
+    def _feedback(self) -> Optional[dict]:
+        return self.store.taste_signals() if self.store else None
 
     @staticmethod
     def _pairs(songs: Sequence[Song]) -> List[List[str]]:

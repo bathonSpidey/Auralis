@@ -43,6 +43,7 @@ Playback = Literal["playing", "queued", "none"]
 
 
 class PlaylistOutcome(BaseModel):
+    id: Optional[int] = None  # history id, once recorded
     name: str
     reason: str
     research: str
@@ -53,6 +54,7 @@ class PlaylistOutcome(BaseModel):
 
 
 class SongOutcome(BaseModel):
+    id: Optional[int] = None  # history id, once recorded
     track: TrackInfo
     reason: str
     playback: Playback

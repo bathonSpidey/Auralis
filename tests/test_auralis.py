@@ -5,13 +5,14 @@ import pytest
 
 from agent.auralis import Auralis, AuralisError
 from agent.depth import PLANS, Depth
-from agent.schemas import PlaylistOutcome, SongOutcome
+from agent.schemas import PlaylistOutcome, SongOutcome, TrackInfo
 from auralis_mcp.session import RunSession
 from models.album import Album
 from models.artist import Artist
 from models.playlist import Playlist
 from models.song import Song
 from spotify.client import SpotifyError
+from store.history import DISLIKE, LIKE, Store
 from spotify.library import NoDeviceError
 
 
@@ -151,10 +152,29 @@ class ScriptedAdvisor:
         return {"reason": "Because."}
 
 
-def make_auralis(tmp_path, spotify=None, **advisor_args):
+def make_auralis(tmp_path, spotify=None, store=None, **advisor_args):
     spotify = spotify or FakeSpotify()
     advisor = ScriptedAdvisor(spotify, **advisor_args)
-    return Auralis(spotify, advisor, runs_dir=tmp_path / "runs"), spotify, advisor
+    auralis = Auralis(spotify, advisor, runs_dir=tmp_path / "runs", store=store)
+    return auralis, spotify, advisor
+
+
+def eight_without(*numbers):
+    """Eight track URIs, skipping T<n> for each given n."""
+    skipped = {URIS[n - 1] for n in numbers}
+    return [uri for uri in URIS if uri not in skipped][:8]
+
+
+def make_store(tmp_path):
+    return Store(tmp_path / "auralis.db")
+
+
+def past_song(store, n):
+    """Record song n as a past creation and return its history id."""
+    t = TrackInfo(uri=URIS[n - 1], title=f"T{n}", artist=f"Band {n}")
+    return store.record_song(
+        SongOutcome(track=t, reason="r", playback="none", dry_run=False), "quick", "web"
+    )
 
 
 class FakeScraper:
@@ -446,3 +466,112 @@ class TestSongCountEstimate:
     def test_estimate(self, tmp_path, prompt, expected):
         auralis = make_auralis(tmp_path)[0]
         assert auralis._estimate_target_song_count(prompt) == expected
+
+
+class TestHistoryAndFeedback:
+    def test_real_creations_are_recorded_and_dry_runs_are_not(self, tmp_path):
+        store = make_store(tmp_path)
+        auralis, _, _ = make_auralis(tmp_path, store=store)
+        auralis.playlist_generator("upbeat", dry_run=True)
+        auralis.song_of_the_moment_suggestion(dry_run=True)
+        assert store.history() == []
+        playlist = auralis.playlist_generator(
+            "upbeat", depth=Depth.DEEP, source="discord"
+        )
+        [entry] = store.history()
+        assert playlist.id == entry["id"]
+        assert entry["prompt"] == "upbeat" and entry["depth"] == "deep"
+        assert entry["source"] == "discord" and len(entry["tracks"]) == 8
+
+    def test_a_song_creation_is_recorded_too(self, tmp_path):
+        store = make_store(tmp_path)
+        auralis, _, _ = make_auralis(tmp_path, store=store)
+        song = auralis.song_of_the_moment_suggestion()
+        assert store.history()[0]["id"] == song.id
+
+    def test_the_next_creation_cannot_repeat_the_last_one(self, tmp_path):
+        store = make_store(tmp_path)
+        past_song(store, 1)
+        auralis, _, advisor = make_auralis(
+            tmp_path, store=store, curator_attempts=(URIS[:8], URIS[1:9])
+        )
+        playlist = auralis.playlist_generator("upbeat")
+        assert advisor.submit_results[0]["ok"] is False
+        assert "T1 - Band 1" in advisor.submit_results[0]["violations"][0]
+        assert [t.uri for t in playlist.tracks] == URIS[1:9]
+
+    def test_the_scout_pool_also_drops_the_last_creations_songs(self, tmp_path):
+        store = make_store(tmp_path)
+        past_song(store, 1)
+        auralis, _, advisor = make_auralis(
+            tmp_path, store=store, curator_attempts=(URIS[1:9],)
+        )
+        auralis.playlist_generator("upbeat")
+        assert "T1 - Band 1" not in advisor.calls[1]["user"]
+
+    def test_after_two_more_creations_a_song_may_come_back(self, tmp_path):
+        store = make_store(tmp_path)
+        for n in (1, 2, 3):
+            past_song(store, n)
+        auralis, _, advisor = make_auralis(
+            tmp_path, store=store, curator_attempts=(eight_without(2, 3),)
+        )
+        playlist = auralis.playlist_generator("upbeat")  # contains T1, long ago
+        assert advisor.submit_results[0]["ok"] is True
+        assert URIS[0] in [t.uri for t in playlist.tracks]
+
+    def test_a_dislike_steers_the_prompts_but_does_not_forbid_the_song(self, tmp_path):
+        store = make_store(tmp_path)
+        first = past_song(store, 1)
+        for n in (2, 3, 4):
+            past_song(store, n)
+        store.rate_track(first, URIS[0], DISLIKE)
+        auralis, _, advisor = make_auralis(
+            tmp_path, store=store, curator_attempts=(eight_without(3, 4),)
+        )
+        playlist = auralis.playlist_generator("upbeat")
+        assert URIS[0] in [t.uri for t in playlist.tracks]
+        assert advisor.submit_results[0]["ok"] is True  # not a hard rule
+        for call in advisor.calls:
+            assert "Disliked" in call["user"] and "- T1 - Band 1" in call["user"]
+
+    def test_likes_reach_every_prompt_and_neutral_songs_add_nothing(self, tmp_path):
+        store = make_store(tmp_path)
+        liked = past_song(store, 5)
+        past_song(store, 6)  # never rated: neutral
+        store.rate_track(liked, URIS[4], LIKE)
+        auralis, _, advisor = make_auralis(
+            tmp_path,
+            store=store,
+            curator_attempts=(eight_without(5, 6),),
+            song_attempts=(URIS[10:11],),
+        )
+        auralis.playlist_generator("upbeat")
+        auralis.song_of_the_moment_suggestion()
+        assert len(advisor.calls) == 3
+        for call in advisor.calls:
+            assert "Liked, so lean toward" in call["user"]
+            assert "- T5 - Band 5" in call["user"]
+            assert "- T6 - Band 6" not in call["user"]
+
+    def test_no_feedback_means_no_feedback_section(self, tmp_path):
+        store = make_store(tmp_path)
+        auralis, _, advisor = make_auralis(tmp_path, store=store)
+        auralis.playlist_generator("upbeat")
+        assert all("LISTENER FEEDBACK" not in c["user"] for c in advisor.calls)
+
+    def test_changing_your_mind_changes_the_next_prompt(self, tmp_path):
+        store = make_store(tmp_path)
+        sid = past_song(store, 5)
+        store.rate_track(sid, URIS[4], DISLIKE)
+        store.rate_track(sid, URIS[4], LIKE)
+        auralis, _, advisor = make_auralis(
+            tmp_path, store=store, curator_attempts=(eight_without(5),)
+        )
+        auralis.playlist_generator("upbeat")
+        user = advisor.calls[0]["user"]
+        assert "Liked, so lean toward this kind of sound:\n- T5 - Band 5" in user
+        assert (
+            "Disliked, so steer away from songs like these and avoid these exact songs unless the request names them:\n- none"
+            in user
+        )

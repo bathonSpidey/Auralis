@@ -5,7 +5,8 @@
     python -m scripts.try_playlist --song
 
 Dry run by default: the full research and every rule check happen, but nothing
-is created in Spotify and nothing is played. Pass --create to make it for real.
+is created in Spotify and nothing is played, and it is not added to the history.
+Pass --create to make it for real.
 """
 
 import argparse
@@ -19,12 +20,13 @@ from agent.auralis import Auralis
 from agent.depth import Depth
 from spotify.library import Spotify
 from src.spotify_scraper import SpotifyScraper
+from store.history import Store
 
 
 def build_auralis() -> Auralis:
     spotify = Spotify.from_env()
     scraper = SpotifyScraper(spotify.client.auth.access_token)
-    return Auralis(spotify, ClaudeAdvisor(), scraper)
+    return Auralis(spotify, ClaudeAdvisor(), scraper, store=Store())
 
 
 def show_tracks(tracks) -> None:
