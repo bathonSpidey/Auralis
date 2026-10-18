@@ -47,7 +47,7 @@ class PromptGenerator:
             "mood or occasion.\n"
         )
 
-    def build_suggest_song_messages(
+    def build_suggest_song_prompt(
         self, user_prompt: dict, already_suggested: List[str] = None
     ):
         already_suggested = already_suggested or []
@@ -62,18 +62,13 @@ class PromptGenerator:
         else:
             exclusion_block = ""
 
-        return [
-            {"role": "system", "content": self.one_song_system_prompt},
-            {
-                "role": "user",
-                "content": (
-                    f"Suggest a song based on my context: {json.dumps(user_prompt)}"
-                    f"{exclusion_block}"
-                ),
-            },
-        ]
+        return (
+            self.one_song_system_prompt,
+            f"Suggest a song based on my context: {json.dumps(user_prompt)}"
+            f"{exclusion_block}",
+        )
 
-    def build_playlist_messages(
+    def build_playlist_prompt(
         self, user_prompt: str, context: dict, target_song_count: int = None
     ):
         length_hint = (
@@ -83,17 +78,12 @@ class PromptGenerator:
             if target_song_count
             else ""
         )
-        return [
-            {"role": "system", "content": self.playlist_system_prompt},
-            {
-                "role": "user",
-                "content": (
-                    "PRIMARY REQUEST (follow exactly — this is what the user actually "
-                    f"asked for):\n{user_prompt}"
-                    f"{length_hint}\n\n"
-                    "SECONDARY CONTEXT (for personalization and discovery only — never "
-                    "let this override the request above):\n"
-                    f"{json.dumps(context) if context else '{}'}"
-                ),
-            },
-        ]
+        return (
+            self.playlist_system_prompt,
+            "PRIMARY REQUEST (follow exactly — this is what the user actually "
+            f"asked for):\n{user_prompt}"
+            f"{length_hint}\n\n"
+            "SECONDARY CONTEXT (for personalization and discovery only — never "
+            "let this override the request above):\n"
+            f"{json.dumps(context) if context else '{}'}",
+        )

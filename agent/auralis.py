@@ -1,31 +1,20 @@
-from openai import OpenAI
-import copy
-import json
 import re
 from datetime import datetime
+from typing import List, Optional
+
+from agent.advisor import Advisor
 from agent.prompt_generator import PromptGenerator
-from agent.tool_essentials import ToolRegistry
-from typing import List
+from agent.schemas import PlaylistSuggestion, SongSuggestion
 
 
 class Auralis:
-    def __init__(
-        self,
-        spotify_connector,
-        openai_api_key,
-        scrapper=None,
-        model="gemini-3.8-flash",
-    ):
-        self.openai_api_key = openai_api_key
-        self.model = model
-        self.base_url = self.supported_models[self.model]
-        self.openai = OpenAI(api_key=self.openai_api_key, base_url=self.base_url)
+    def __init__(self, spotify_connector, advisor: Advisor, scrapper=None):
+        self.advisor = advisor
         self.prompt_generator = PromptGenerator()
         self.spotify_connector = spotify_connector
         self.scrapper = scrapper
         self.supported_countries = ["de", "us", "in", "jp"]
 
-    registry = ToolRegistry()
     _AVG_SONG_MINUTES = 3.5
     _WORD_NUMBERS = {
         "a": 1,
@@ -62,52 +51,17 @@ class Auralis:
         "marathon",
     ]
     _SHORT_SESSION_KEYWORDS = ["quick", "short", "one song", "single song"]
-    supported_models = {
-        "gemini-3.8-flash": "https://generativelanguage.googleapis.com/v1beta/openai/",
-        "gemini-3.7-flash": "https://generativelanguage.googleapis.com/v1beta/openai/",
-        "gemini-3.6-flash": "https://generativelanguage.googleapis.com/v1beta/openai/",
-        "gemini-3-flash-preview": "https://generativelanguage.googleapis.com/v1beta/openai/",
-        "gpt-4.1": "https://api.openai.com/v1/",
-        "gpt-4o": "https://api.openai.com/v1/",
-        "o4-mini": "https://api.openai.com/v1/",
-        "local_lm_studio": "localhost:1234/v1",
-    }
 
-    @registry.register(description="Suggest and plays a song in spotify", tags=["song"])
-    def suggest_song(self, song_title: str, artist_name: str, reason: str) -> str:
-        """Suggests and plays a song in spotify based on the given song title, artist name
-
-        Args:
-            song_title (str): The title of the song to be suggested.
-            artist_name (str): The name of the artist of the song to be suggested.
-            reason (str): The reason why this song should be suggested.
-
-        Returns:
-            Song: The suggested song.
-        """
-        search_query = f"{song_title} {artist_name}"
-        song = self.spotify_connector.search_for_song(search_query)[0]
+    def _play_or_queue(self, suggestion: SongSuggestion) -> None:
+        search_query = f"{suggestion.song_title} {suggestion.artist_name}"
+        matches = self.spotify_connector.search_for_song(search_query)
+        if not matches:
+            raise LookupError(f"No Spotify match for '{search_query}'")
+        song = matches[0]
         if self.spotify_connector.is_currently_playing():
             self.spotify_connector.add_songs_to_queue(song.uri)
         else:
             self.spotify_connector.play_song(song.uri)
-        return song_title, artist_name, reason
-
-    @registry.register(description="Assembles a playlist in spotify", tags=["playlist"])
-    def generate_playlist(
-        self, playlist_name: str, songs: List[str], reason: str
-    ) -> str:
-        """Generates a playlist in spotify with the given songs
-
-        Args:
-            playlist_name (str): The name of the playlist to be generated.
-            songs (List[str]): The list of songs to be added to the playlist.
-
-        Returns:
-            str: The success message.
-        """
-        self.spotify_connector.generate_playlist_from_auralis(playlist_name, songs)
-        return playlist_name, songs, reason
 
     def build_context(self, weather_connector=None, city=None):
         hour = datetime.now().hour
@@ -216,52 +170,39 @@ class Auralis:
             return 25
         return None
 
-    def song_of_the_moment_suggestion(self, weather_connector=None, city=None):
+    def song_of_the_moment_suggestion(
+        self,
+        weather_connector=None,
+        city=None,
+        already_suggested: Optional[List[str]] = None,
+    ) -> SongSuggestion:
         context = self.build_context(weather_connector=weather_connector, city=city)
-        user_prompt = {"context": context}
-        tools = self.registry.to_openai_tools()
-        response = self.openai.chat.completions.create(
-            model=self.model,
-            messages=self.prompt_generator.build_suggest_song_messages(user_prompt),
-            tools=tools,
-            temperature=0.7,
+        system_prompt, user_prompt = self.prompt_generator.build_suggest_song_prompt(
+            {"context": context}, already_suggested
         )
-        message = response.choices[0].message
-        if message.tool_calls:
-            for tool_call in message.tool_calls:
-                return self.call_function(tool_call)
-            print("No valid suggestion.")
-            return None
+        suggestion = SongSuggestion.model_validate(
+            self.advisor.advise(
+                system_prompt, user_prompt, SongSuggestion.model_json_schema()
+            )
+        )
+        self._play_or_queue(suggestion)
+        return suggestion
 
-    def call_function(self, tool_call):
-        tool_name = tool_call.function.name
-        arguments = json.loads(tool_call.function.arguments)
-        tool_func = self.registry.tools[tool_name]["function"]
-        tool_func = tool_func.__get__(self, self.__class__)
-        return tool_func(**arguments)
-
-    def playlist_generator(self, user_prompt, weather_connector=None, city=None):
-        tools = copy.deepcopy(self.registry.to_openai_tools())
+    def playlist_generator(
+        self, user_prompt, weather_connector=None, city=None
+    ) -> PlaylistSuggestion:
         context = self.build_context(weather_connector=weather_connector, city=city)
         target_song_count = self._estimate_target_song_count(user_prompt)
+        schema = PlaylistSuggestion.model_json_schema()
         if target_song_count:
-            for tool in tools:
-                if tool["function"]["name"] == "generate_playlist":
-                    tool["function"]["parameters"]["properties"]["songs"][
-                        "minItems"
-                    ] = max(5, target_song_count - 3)
-        try:
-            response = self.openai.chat.completions.create(
-                model=self.model,
-                messages=self.prompt_generator.build_playlist_messages(
-                    user_prompt, context, target_song_count
-                ),
-                tools=tools,
-                temperature=0.7,
-            )
-            message = response.choices[0].message
-            if message.tool_calls:
-                for tool_call in message.tool_calls:
-                    return self.call_function(tool_call)
-        except Exception as e:
-            return {}, [], str(e)
+            schema["properties"]["songs"]["minItems"] = max(5, target_song_count - 3)
+        system_prompt, prompt = self.prompt_generator.build_playlist_prompt(
+            user_prompt, context, target_song_count
+        )
+        suggestion = PlaylistSuggestion.model_validate(
+            self.advisor.advise(system_prompt, prompt, schema)
+        )
+        self.spotify_connector.generate_playlist_from_auralis(
+            suggestion.playlist_name, suggestion.songs
+        )
+        return suggestion

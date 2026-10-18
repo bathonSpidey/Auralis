@@ -1,7 +1,6 @@
-streamlit
-st-cookies-manager
 spotipy
-openai
+pydantic
+requests
 python-dotenv
 timezonefinder
 pre-commit
