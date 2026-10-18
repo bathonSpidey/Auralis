@@ -100,6 +100,26 @@ class TestBuildContext:
         json.dumps(context)
 
 
+class FakeScraper:
+    def get_trending_songs(self, country):
+        return f"trending-{country}"
+
+    def get_viral_songs(self, country):
+        return None  # Spotify removed the viral charts
+
+
+class TestCharts:
+    def test_unavailable_charts_are_left_out_of_the_context(self):
+        context = Auralis(FakeSpotify(), FakeAdvisor({}), FakeScraper()).build_context()
+        assert context["trending_charts"] == [
+            "trending-de",
+            "trending-us",
+            "trending-in",
+            "trending-jp",
+        ]
+        assert context["viral_charts"] == []
+
+
 class TestSongOfTheMoment:
     def test_plays_the_suggestion_when_nothing_is_playing(self):
         spotify = FakeSpotify(playing=False)

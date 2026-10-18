@@ -107,8 +107,12 @@ class Auralis:
         viral_charts = []
         if self.scrapper:
             for country in self.supported_countries:
-                all_charts.append(self.scrapper.get_trending_songs(country=country))
-                viral_charts.append(self.scrapper.get_viral_songs(country=country))
+                trending = self.scrapper.get_trending_songs(country=country)
+                viral = self.scrapper.get_viral_songs(country=country)
+                if trending:
+                    all_charts.append(trending)
+                if viral:
+                    viral_charts.append(viral)
         genre_distribution = self._get_recent_genre_distribution(
             recent_songs[:10] + top_tracks[:10]
         )

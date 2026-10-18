@@ -213,13 +213,20 @@ class Spotify:
         self.client.post("/me/player/queue", params={"uri": uri})
 
     def _device_id(self) -> str:
+        """Active device, else a computer/phone, else the device named by
+        SPOTIFY_DEVICE_NAME. Never an arbitrary speaker: starting music in
+        some other room is worse than not playing."""
         devices = self.devices()
-        if not devices:
-            raise NoDeviceError("No Spotify device is available to play on")
-        chosen = devices[0]
         for device in devices:
             if device.is_active:
                 return device.id
-            if device.type.lower() in ("computer", "smartphone"):
-                chosen = device
+        preferred = (os.getenv("SPOTIFY_DEVICE_NAME") or "").strip().lower()
+        by_name = [d for d in devices if preferred and d.name.lower() == preferred]
+        personal = [d for d in devices if d.type.lower() in ("computer", "smartphone")]
+        chosen = (by_name or personal or [None])[0]
+        if chosen is None:
+            raise NoDeviceError(
+                "No active Spotify device; open Spotify somewhere or set "
+                "SPOTIFY_DEVICE_NAME"
+            )
         return chosen.id

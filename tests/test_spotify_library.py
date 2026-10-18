@@ -200,7 +200,7 @@ class TestPlayback:
         assert play["params"] == {"device_id": "tv"}
         assert play["json"] == {"uris": ["spotify:track:1"]}
 
-    def test_falls_back_to_a_computer_or_phone_then_anything(self):
+    def test_falls_back_to_a_computer_or_phone(self):
         routes = {
             **self.devices(self.device("tv", "TV"), self.device("phone", "Smartphone")),
             ("PUT", "/me/player/play"): FakeResponse(204),
@@ -209,6 +209,27 @@ class TestPlayback:
         spotify.play_playlist("spotify:playlist:p1")
         assert session.calls[-1]["params"] == {"device_id": "phone"}
         assert session.calls[-1]["json"] == {"context_uri": "spotify:playlist:p1"}
+
+    def test_never_picks_an_arbitrary_speaker(self):
+        spotify, session = make_spotify(
+            self.devices(self.device("kitchen", "Speaker"), self.device("tv", "TV"))
+        )
+        with pytest.raises(NoDeviceError, match="SPOTIFY_DEVICE_NAME"):
+            spotify.play_track("spotify:track:1")
+        assert session.paths("PUT") == []
+
+    def test_a_named_device_is_used_when_nothing_is_active(self, monkeypatch):
+        monkeypatch.setenv("SPOTIFY_DEVICE_NAME", "kitchen")
+        routes = {
+            **self.devices(
+                {**self.device("k", "Speaker"), "name": "Kitchen"},
+                self.device("t", "TV"),
+            ),
+            ("PUT", "/me/player/play"): FakeResponse(204),
+        }
+        spotify, session = make_spotify(routes)
+        spotify.play_track("spotify:track:1")
+        assert session.calls[-1]["params"] == {"device_id": "k"}
 
     def test_no_device_raises(self):
         spotify, _ = make_spotify(self.devices())
