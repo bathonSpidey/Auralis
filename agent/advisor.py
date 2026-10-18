@@ -11,7 +11,7 @@ import os
 import subprocess  # nosec B404 - only ever runs the claude binary with a fixed arg list
 import tempfile
 import time
-from typing import Callable, Optional, Protocol
+from typing import Callable, Optional, Protocol, Sequence
 
 DEFAULT_MODEL = "claude-sonnet-5-5"
 
@@ -25,7 +25,17 @@ class AdvisorError(RuntimeError):
 
 
 class Advisor(Protocol):
-    def advise(self, system_prompt: str, user_prompt: str, schema: dict) -> dict: ...
+    def advise(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        schema: dict,
+        *,
+        mcp_config: Optional[dict] = None,
+        allowed_tools: Sequence[str] = (),
+        builtin_tools: Sequence[str] = (),
+        max_budget_usd: Optional[float] = None,
+    ) -> dict: ...
 
 
 def subprocess_runner(env=None, cwd=None, timeout=1800) -> RunFn:
@@ -81,7 +91,24 @@ class ClaudeAdvisor:
             env=env, cwd=tempfile.gettempdir(), timeout=timeout
         )
 
-    def advise(self, system_prompt: str, user_prompt: str, schema: dict) -> dict:
+    def advise(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        schema: dict,
+        *,
+        mcp_config: Optional[dict] = None,
+        allowed_tools: Sequence[str] = (),
+        builtin_tools: Sequence[str] = (),
+        max_budget_usd: Optional[float] = None,
+    ) -> dict:
+        """Ask Claude for an answer in `schema`.
+
+        By default Claude has no tools. `builtin_tools` (e.g. WebSearch) and an
+        `mcp_config` server can be enabled per call; `allowed_tools` are the
+        permission rules that let them run unattended (e.g. "WebSearch",
+        "mcp__auralis").
+        """
         args = [
             self.claude_binary,
             "-p",
@@ -94,9 +121,15 @@ class ClaudeAdvisor:
             "--system-prompt",
             system_prompt,
             "--tools",
-            "",
+            ",".join(builtin_tools),
             "--no-session-persistence",
         ]
+        if mcp_config:
+            args += ["--mcp-config", json.dumps(mcp_config), "--strict-mcp-config"]
+        if allowed_tools:
+            args += ["--allowedTools", ",".join(allowed_tools)]
+        if max_budget_usd is not None:
+            args += ["--max-budget-usd", str(max_budget_usd)]
         for attempt in range(1, self.max_attempts + 1):
             envelope = self._parse_envelope(self.run(args, user_prompt))
             if not envelope.get("is_error"):

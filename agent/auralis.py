@@ -120,10 +120,12 @@ class Auralis:
             "time_of_day": time_of_day,
             "season": season,
             "my_recently_played_songs": [
-                item.model_dump(exclude={"id", "uri"}) for item in recent_songs[:10]
+                item.model_dump(exclude={"id", "uri", "album"})
+                for item in recent_songs[:10]
             ],
             "my_top_tracks": [
-                item.model_dump(exclude={"id", "uri"}) for item in top_tracks[:10]
+                item.model_dump(exclude={"id", "uri", "album"})
+                for item in top_tracks[:10]
             ],
             "my_playlists": [
                 item.model_dump(exclude={"id", "uri", "href"}) for item in playlists

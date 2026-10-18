@@ -6,13 +6,12 @@ agent and, later, the MCP server sit on.
 """
 
 import os
-import re
-import unicodedata
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Sequence, Tuple
 
 from models.device import Device
 from models.playlist import Playlist
+from models.song_key import normalize
 from models.song import Song
 from spotify.auth import (
     DEFAULT_REDIRECT_URI,
@@ -35,11 +34,6 @@ class PlaylistBuild:
     playlist: Playlist
     added: List[Song]
     not_found: List[str]
-
-
-def _normalize(text: str) -> str:
-    text = unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode()
-    return re.sub(r"[^a-z0-9]+", " ", text.lower()).strip()
 
 
 def _to_song(track: Optional[dict]) -> Optional[Song]:
@@ -131,18 +125,18 @@ class Spotify:
                 if self._artist_matches(song, artist)
             ]
             if matches:
-                wanted = _normalize(title)
+                wanted = normalize(title)
                 for song in matches:
-                    if _normalize(song.name) == wanted:
+                    if normalize(song.name) == wanted:
                         return song
                 return matches[0]
         return None
 
     @staticmethod
     def _artist_matches(song: Song, artist: str) -> bool:
-        wanted = _normalize(artist)
+        wanted = normalize(artist)
         for candidate in song.artists:
-            name = _normalize(candidate.name)
+            name = normalize(candidate.name)
             if name and (name in wanted or wanted in name):
                 return True
         return False
@@ -158,6 +152,10 @@ class Spotify:
             },
         )
         return Playlist(**body)
+
+    def delete_playlist(self, playlist_uri: str) -> None:
+        """Removes a playlist from the user's library (Spotify's 'delete')."""
+        self.client.request("DELETE", "/me/library", params={"uris": playlist_uri})
 
     def add_to_playlist(self, playlist_id: str, uris: Sequence[str]) -> None:
         for start in range(0, len(uris), _PLAYLIST_ADD_BATCH):
