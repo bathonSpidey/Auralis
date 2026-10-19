@@ -29,8 +29,16 @@ function icon(name) {
     open: "M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5",
     x: "M6 6l12 12M18 6L6 18",
     swap: "M7 7h11l-3-3M17 17H6l3 3",
+    pin: "M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11zM12 7.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5z",
+    clock: "M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM12 7v5l3 2",
+    sun: "M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8zM12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4",
+    cloud: "M7 19a4 4 0 0 1-.6-7.96A6 6 0 0 1 18 10.5 4.3 4.3 0 0 1 17.5 19H7z",
+    rain: "M7 15a4 4 0 0 1-.6-7.96A6 6 0 0 1 18 6.5 4.3 4.3 0 0 1 17.5 15H7zM8 18l-1 2.5M12 18l-1 2.5M16 18l-1 2.5",
+    snow: "M7 15a4 4 0 0 1-.6-7.96A6 6 0 0 1 18 6.5 4.3 4.3 0 0 1 17.5 15H7zM8 18.5h.01M12 20h.01M16 18.5h.01",
+    bolt: "M13 2L4 14h7l-1 8 9-12h-7l1-8z",
+    mist: "M4 8h16M6 12h12M4 16h16",
   };
-  const stroked = ["check", "open", "x", "swap"].includes(name);
+  const stroked = ["check", "open", "x", "swap", "pin", "clock", "sun", "cloud", "rain", "snow", "bolt", "mist"].includes(name);
   const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
   svg.setAttribute("viewBox", "0 0 24 24");
   svg.setAttribute("aria-hidden", "true");
@@ -160,6 +168,43 @@ async function loadDevices() {
     const known = settings.device === "current" || devices.some((d) => d.id === settings.device);
     select.value = known ? settings.device : "";
   } catch (_) { /* the list is optional */ }
+}
+
+/* ── where, when and the weather ──────────────────────────────────────── */
+const WEATHER_ICON = { Clear: "sun", Clouds: "cloud", Rain: "rain", Drizzle: "rain", Snow: "snow", Thunderstorm: "bolt" };
+let nowInfo = null;
+
+function dayPart(hour) {
+  // The same bands the prompt uses, so the page says what Claude was told.
+  if (hour >= 4 && hour < 12) return "Morning";
+  if (hour >= 12 && hour < 18) return "Afternoon";
+  if (hour >= 18 && hour < 21) return "Evening";
+  if (hour >= 21 && hour < 23) return "Night";
+  return "Late night";
+}
+
+function renderNow() {
+  const box = $("#now");
+  if (!nowInfo || !nowInfo.available) { box.hidden = true; return; }
+  const zone = nowInfo.timezone || undefined;
+  const date = new Date();
+  const clock = date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: zone });
+  const hour = Number(date.toLocaleString("en-GB", { hour: "numeric", hour12: false, timeZone: zone })) % 24;
+  const description = nowInfo.description.charAt(0).toUpperCase() + nowInfo.description.slice(1);
+  box.replaceChildren(
+    h("span", { class: "chip-now" }, icon("pin"), h("strong", {}, nowInfo.city), h("span", { class: "soft" }, nowInfo.country)),
+    h("span", { class: "chip-now" }, icon("clock"), h("strong", {}, clock), h("span", { class: "soft" }, dayPart(hour))),
+    h("span", { class: "chip-now" },
+      icon(WEATHER_ICON[nowInfo.condition] || "mist"),
+      h("strong", {}, `${nowInfo.temperature}°C`),
+      h("span", { class: "soft" }, `${description} · feels ${nowInfo.feels_like}°`),
+    ),
+  );
+  box.hidden = false;
+}
+
+async function loadNow() {
+  try { nowInfo = await api("/api/now"); renderNow(); } catch (_) { /* the strip is optional */ }
 }
 
 /* ── composer ─────────────────────────────────────────────────────────── */
@@ -509,6 +554,9 @@ async function boot() {
   showTab(location.hash.slice(1) || "create");
   refreshStatus();
   loadDevices();
+  loadNow();
+  setInterval(renderNow, 20000);
+  setInterval(loadNow, 15 * 60 * 1000);
   loadRecent();
   setInterval(refreshStatus, 20000);
 

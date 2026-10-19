@@ -192,6 +192,26 @@ def create_app(
         except Exception as e:  # the page still works without the list
             return JSONResponse({"devices": [], "error": str(e)[:200]})
 
+    @app.get("/api/now")
+    def now():
+        """Where the listener is, the local time and the weather: the same
+        context Claude is given. Cached by the weather connector."""
+        weather = getattr(auralis, "weather", None)
+        found = weather.conditions() if weather else None
+        if found is None:
+            return {"available": False}
+        tz = getattr(found.now.tzinfo, "key", None)
+        return {
+            "available": True,
+            "city": found.location.city,
+            "country": found.location.country,
+            "timezone": tz,
+            "temperature": round(found.weather.temperature),
+            "feels_like": round(found.weather.feels_like),
+            "condition": found.weather.weather[0].forecast,
+            "description": found.weather.weather[0].description,
+        }
+
     @app.get("/api/health")
     def health():
         jobs = queue.recent()

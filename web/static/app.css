@@ -219,6 +219,16 @@ a.link:hover { text-decoration: underline; }
 
 /* ── create ── */
 .hero { margin-bottom: 1.8rem; }
+.now { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.6rem; margin-bottom: 1.1rem; }
+.now[hidden] { display: none; }
+.now .chip-now {
+  display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.4rem 0.8rem 0.4rem 0.65rem;
+  border: 1px solid var(--line); border-radius: 999px; background: var(--surface);
+  font-size: 0.88rem; color: var(--fg-2); white-space: nowrap;
+}
+.now .chip-now svg { width: 1.05rem; height: 1.05rem; color: var(--accent); flex: none; }
+.now .chip-now strong { color: var(--fg); font-weight: 600; font-variant-numeric: tabular-nums; }
+.now .chip-now .soft { color: var(--muted); }
 .setup { display: flex; flex-wrap: wrap; gap: 1rem 1.6rem; align-items: end; margin-bottom: 1.2rem; }
 .field { display: grid; gap: 0.35rem; min-width: 0; }
 .field > label, .field > .label { font-size: 0.8rem; color: var(--muted); font-weight: 500; }

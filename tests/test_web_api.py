@@ -340,6 +340,22 @@ class TestEnvironment:
         body = client.get("/api/devices").json()
         assert body["devices"] == [] and "unreachable" in body["error"]
 
+    def test_now_reports_city_time_zone_and_weather(self, world):
+        from web.demo import DemoWeather
+
+        world.auralis.weather = DemoWeather()
+        body = world.client.get("/api/now").json()
+        assert body["available"] is True
+        assert (body["city"], body["country"]) == ("Baden-Baden", "DE")
+        assert body["timezone"] == "Europe/Berlin"
+        assert body["temperature"] == 17 and body["feels_like"] == 16
+        assert body["condition"] == "Clouds" and body["description"] == "broken clouds"
+
+    def test_now_is_unavailable_without_weather(self, world):
+        assert world.client.get("/api/now").json() == {"available": False}
+        world.auralis.weather = type("Down", (), {"conditions": lambda self: None})()
+        assert world.client.get("/api/now").json() == {"available": False}
+
     def test_health(self, world):
         submit(world, kind="song")
         assert world.client.get("/api/health").json() == {

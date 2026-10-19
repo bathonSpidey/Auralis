@@ -48,9 +48,38 @@ class DemoSpotify:
         return True
 
 
+class DemoWeather:
+    def conditions(self, city=None):
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+
+        from models.location import Location
+        from models.location_temperature import Temperature
+        from src.weather_api_connector import Conditions
+
+        return Conditions(
+            location=Location(name="Baden-Baden", country="DE", lat=48.76, lon=8.24),
+            weather=Temperature(
+                temp=17.4,
+                feels_like=16.2,
+                pressure=1018,
+                humidity=62,
+                dew_point=9.0,
+                uvi=0.4,
+                clouds=75,
+                visibility=10000,
+                wind_speed=2.1,
+                wind_deg=200,
+                weather=[{"main": "Clouds", "description": "broken clouds"}],
+            ),
+            now=datetime.now(ZoneInfo("Europe/Berlin")),
+        )
+
+
 class DemoAuralis:
     def __init__(self, store: Store):
         self.store = store
+        self.weather = DemoWeather()
 
     def _walk(self, stages, progress):
         for stage in stages:
