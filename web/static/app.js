@@ -152,9 +152,13 @@ async function loadDevices() {
     const { devices } = await api("/api/devices");
     select.replaceChildren(
       h("option", { value: "" }, "Don't play, just create"),
+      // Spotify only lists devices that are online; this one also covers the
+      // device it remembers as the last one used.
+      h("option", { value: "current" }, "Where I'm listening (playing now, or last used)"),
       ...devices.map((d) => h("option", { value: d.id }, d.name + (d.is_active ? " (active now)" : ""))),
     );
-    select.value = devices.some((d) => d.id === settings.device) ? settings.device : "";
+    const known = settings.device === "current" || devices.some((d) => d.id === settings.device);
+    select.value = known ? settings.device : "";
   } catch (_) { /* the list is optional */ }
 }
 

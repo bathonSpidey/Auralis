@@ -36,6 +36,7 @@ class Job:
     result: Optional[dict] = None
     error: Optional[str] = None
     committed: bool = False
+    source: str = "web"  # who asked: web | discord | digest
 
 
 Runner = Callable[[Job, Callable[[str], None]], dict]

@@ -1,102 +1,119 @@
-# 🎵 Auralis
-[![Auralis](https://github.com/bathonSpidey/Auralis/actions/workflows/code-check.yml/badge.svg)](https://github.com/bathonSpidey/Auralis/actions/workflows/code-check.yml) [![Bandit](https://github.com/bathonSpidey/Auralis/actions/workflows/bandit.yml/badge.svg)](https://github.com/bathonSpidey/Auralis/actions/workflows/bandit.yml)
+# Auralis
 
-**Auralis** is an **Agentic AI** that generates personalized **songs** and **playlists** based on your mood, prompts, and environment.  
-It’s a fun project designed for anyone who wants to **learn, build, and explore Agentic AI** concepts!
+[![Code check](https://github.com/bathonSpidey/Auralis/actions/workflows/code-check.yml/badge.svg)](https://github.com/bathonSpidey/Auralis/actions/workflows/code-check.yml)
 
----
+Auralis builds songs and playlists for you from your own Spotify taste, the time of day, the season and the weather. Claude does the thinking, Spotify supplies the music, and you reach it from a web page on your home network or from Discord.
 
-## 🚀 How It Works
+It is made to run on a small always-on machine (a Raspberry Pi) and to stay out of its way: one idle Python process, and Claude only starts when you ask for something.
 
-Auralis acts as an intelligent agent with tools to generate music recommendations.  
-Currently, it supports **two main features**:
+## What it does
 
-1. **🎶 Song for the Moment**
+- **Playlist.** Describe a moment ("a one-hour focus session, instrumental but not boring") and get a playlist in your Spotify. Mention a length and it fits.
+- **Song of the moment.** One new song for right now. A daily song can be posted to Discord.
+- **Knows your taste.** It reads your recent plays, top tracks, playlists and liked songs, and prefers discoveries over what you already know.
+- **Knows the moment.** Local time of day, season and current weather go into every request.
+- **Research depth.** _Quick_ uses your taste only, _Auto_ searches the web when it needs to, _Deep_ researches properly. Pick it per request.
+- **Memory.** Everything it makes is kept in a history. Songs from the last two creations never repeat back to back; older ones may come back.
+- **Likes and dislikes.** Rate any song. A like leans toward that sound, a dislike steers away from songs like it (never a ban), and unrated songs are neutral. Change or clear a rating any time.
+- **Playback.** It plays only where you say: a chosen device, or "where I'm listening" (the playing device, else the last one Spotify remembers). Choose nothing and it just creates the playlist.
 
-   - Get a song recommendation from an LLM.
-   - If you have an active Spotify device, the song plays automatically!
-   - No active device? No worries — the song still appears on the frontend for manual play.
+## How it works
 
-2. **📜 Prompt-Based Playlist Generator**
-   - Create a customized playlist based on your own text prompts (e.g., _"chill summer vibes"_ or _"motivational workout beats"_).
+```
+ web page ─┐                              ┌─ Spotify (read: taste, search)
+           ├─> job queue ─> Auralis ──────┤
+ Discord ──┘   (one at a time)   │         └─ Spotify (write: one gated tool)
+                                 ▼
+                      claude -p  (headless, no daemon)
+                       1. Scout   web search + read-only Spotify tools
+                       2. Curator no web, holds the only write tool
+```
 
----
+Claude runs headless (`claude -p`) with an MCP server that exposes Spotify. The two stages are split on purpose: the agent that reads the web cannot write anything, and the agent that writes cannot read the web, which limits what a poisoned web page could do.
 
-## 📲 How to Use It
+The rules are enforced in code, not in the prompt. The only way to create a playlist is a tool that checks every submission: tracks must have been returned by a real Spotify lookup, no duplicates (across releases of the same song), a sane length, a cap per artist, a limit on already-familiar songs, and nothing from the last two creations. A rejected submission comes back with the reasons so Claude can fix it. Creation is all-or-nothing, and a preview (dry run) runs the identical checks without touching Spotify.
 
-Auralis runs on **Streamlit**, making it simple and interactive!
+## Using it
 
-> **Important:** You’ll need to **bring your own API keys** to get started.
+**Web page.** Open `http://<host>:8090`. _Create_ makes a playlist or a song, with _Show me before creating_ on by default so you can look first and then create exactly what you saw, with no second round of research. _History_ lists everything made. _Likes & dislikes_ is where you change your mind.
 
-Here's what you need:
+**Discord.** Slash commands, answered only for one user in one server:
 
-- **LLM API Key:**  
-  Use keys from providers like OpenAI (ChatGPT), Google Gemini, or even your own locally hosted LLM.
+| Command                                          | What it does                                                 |
+| :----------------------------------------------- | :----------------------------------------------------------- |
+| `/song [web] [play]`                             | One new song. `web` also searches the web, `play` plays it.  |
+| `/playlist <prompt> [depth] [play]`              | Builds and creates a playlist.                               |
+| `/history [count]`                               | The most recent suggestions.                                 |
 
-- **Weather API Key (optional):**  
-  If you want music recommendations based on your current weather!
+A song comes with **Like** and **Less like this** buttons. If `DISCORD_CHANNEL_ID` is set, a song is posted there every day at `AURALIS_DIGEST_TIME` (default 08:30, local time; `off` disables it).
 
----
+## Setup
 
-## 🛠️ Developer Setup
+You need Python 3.10+, a **Spotify Premium** account with a developer app, and the [Claude Code](https://claude.com/claude-code) CLI logged in on the machine that runs Auralis.
 
-Want to **develop, contribute**, or **customize** Auralis?  
-Follow these simple steps:
+```bash
+git clone https://github.com/bathonSpidey/Auralis.git
+cd Auralis
+python -m venv .venv && source .venv/bin/activate    # Windows: .venv\Scripts\activate
+pip install -r requirements.txt
+```
 
-1. **Clone the Repository**
+1. **Spotify app.** Create an app at the [Spotify Developer Dashboard](https://developer.spotify.com/dashboard) and add the redirect URI `http://127.0.0.1:8501`. Auralis uses PKCE, so only the client ID is needed.
+2. **Configure.** Create a `.env` (or the systemd environment file):
 
-   ```bash
-   git clone <repository>
-   ```
-
-2. **Set Up a Virtual Environment**
-
-   ```bash
-   python -m venv .venv
-   ```
-
-3. **Activate the Environment**
-
-   - On Windows:
-     ```bash
-     .venv\Scripts\activate
-     ```
-   - On Mac/Linux:
-     ```bash
-     source .venv/bin/activate
-     ```
-
-4. **Install Requirements**
-
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-5. **Create a `.env` File**  
-   Add your API keys and settings:
    ```env
-   SPOTIPY_CLIENT_ID="<your Spotify client ID>"
-   SPOTIPY_CLIENT_SECRET="<your Spotify client secret>"
-   OPENAI_API_KEY="<your LLM API key>"
-   WEATHER="<your weather API key (optional)>"
-   COOKIES="<your cookie encryption key>"
-   LASTFM="<Last fm api key>"
+   SPOTIFY_CLIENT_ID=<client id>
+   AURALIS_DATA_DIR=~/auralis-data      # optional; database and token live here, outside the repo
+
+   WEATHER=<OpenWeather One Call 3.0 key>   # optional
+   AURALIS_CITY=<city>                      # optional; default is guessed from your public IP
+
+   DISCORD_BOT_TOKEN=<bot token>            # optional: all of these four turn the bot on
+   DISCORD_GUILD_ID=<server id>
+   DISCORD_USER_ID=<the one user allowed to command it>
+   DISCORD_CHANNEL_ID=<channel for the daily song>
+   AURALIS_DIGEST_TIME=08:30                # or "off"
    ```
 
----
+3. **Log in to Spotify once**, on a machine with a browser: `python -m spotify.login` (use `--manual` if the browser is on another machine, `--check` to verify). The token is saved in the data directory and can be copied to the server.
+4. **Run:** `python -m web` serves the page on port 8090 (and starts the Discord bot if configured). `python -m web --demo` runs the UI with canned data and needs neither Spotify nor Claude.
 
-## 📚 Supported APIs and Services
+The page has no login; it is meant for a trusted home network.
 
-| API/Service     | Purpose                                             | Example                                                                |
-| :-------------- | :-------------------------------------------------- | :--------------------------------------------------------------------- |
-| **Spotify API** | Song playback, search, playlists                    | [Spotify Developer Dashboard](https://developer.spotify.com/dashboard) |
-| **OpenAI**      | Generating song recommendations & playlists         | [OpenAI Platform](https://platform.openai.com/)                        |
-| **Gemini**      | Generating song recommendations & playlists         | [Google AI Studio](https://aistudio.google.com/prompts/new_chat)       |
-| **LM Studio**   | Generating song recommendations & playlists locally | [LM Studio](https://lmstudio.ai/)                                      |
-| **Weather API** | Location-based music suggestions                    | [WeatherAPI.com](https://openweathermap.org/api/one-call-3)            |
-| **Last FM** | Top trending songs                                      | [Last FM](https://www.last.fm/api/show/chart.getTopTracks)             
----
+### Discord bot
 
-# 🎧 Ready to create your perfect vibe?
+Create an application at the [Discord Developer Portal](https://discord.com/developers/applications), add a bot, and invite it with the `bot` and `applications.commands` scopes plus _Send Messages_ and _Embed Links_. It needs no privileged intents and never reads ordinary messages.
 
-Run Auralis, input your mood, and let the magic happen!
+### Running on a Raspberry Pi
+
+`deploy/auralis.service` is a systemd **user** unit: it runs at lower priority, is first in line to be stopped under memory pressure, and logs to the journal. Copy it to `~/.config/systemd/user/`, adjust the paths, then `systemctl --user enable --now auralis`. With `loginctl enable-linger` it survives logouts and reboots. The service holds about 80 MB; `claude` is not a daemon and exists only while a run is in progress. Logs: `systemctl --user status auralis`.
+
+Auralis keeps its data in `AURALIS_DATA_DIR`: the SQLite history (`auralis.db`), the Spotify token, and short-lived run folders. History is pruned automatically (a year, 500 suggestions); ratings are kept.
+
+## Development
+
+```bash
+pip install -r requirements-dev.txt
+pytest -q -m "not integration"      # no network, no Spotify, no Claude needed
+ruff check . && ruff format --check .
+python -m scripts.try_playlist --depth quick "rainy focus"   # a real dry run, creates nothing
+```
+
+| Path             | What lives there                                                       |
+| :--------------- | :--------------------------------------------------------------------- |
+| `agent/`         | The Claude advisor, scout/curator prompts, depth plans, run workspace  |
+| `auralis_mcp/`   | The MCP server and the rule-enforcing gate                             |
+| `spotify/`       | Spotify client (PKCE auth), library, login helper                      |
+| `store/`         | SQLite history, ratings and pruning                                    |
+| `web/`           | FastAPI app, job queue and the single-page UI                          |
+| `discord_bot/`   | Slash commands, daily song, like/dislike buttons                       |
+| `src/`           | Weather (OpenWeather), a fail-soft chart scraper, and a Last.fm connector (not used yet) |
+
+## Services
+
+| Service                | Used for                                          |
+| :--------------------- | :------------------------------------------------ |
+| Spotify Web API        | Your taste, search, playlists and playback        |
+| Claude (Claude Code)   | Research, curation and the final choice           |
+| OpenWeather One Call   | Weather for the moment (optional)                 |
+| Discord                | Commands and the daily song (optional)            |

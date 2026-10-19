@@ -27,7 +27,28 @@ def build_real():
     store = Store()
     advisor = ClaudeAdvisor(config_dir=os.getenv("AURALIS_CLAUDE_CONFIG_DIR"))
     scraper = SpotifyScraper(spotify.client.auth.access_token)
-    return Auralis(spotify, advisor, scraper, store=store), store, spotify
+    weather = None
+    if os.getenv("WEATHER"):  # optional: without a key, only time and season
+        from src.weather_api_connector import WeatherApiConnector
+
+        weather = WeatherApiConnector(os.getenv("WEATHER"), os.getenv("AURALIS_CITY"))
+    return (
+        Auralis(spotify, advisor, scraper, store=store, weather=weather),
+        store,
+        spotify,
+    )
+
+
+def attach_discord(app, store) -> None:
+    """Run the Discord bot inside this process when it is configured, so one
+    Python process serves both the page and the bot."""
+    from discord_bot.bot import AuralisBot, Settings, lifespan_for
+
+    settings = Settings.from_env()
+    if settings is None:
+        return
+    bot = AuralisBot(settings, app.state.queue, store)
+    app.router.lifespan_context = lifespan_for(bot)
 
 
 def main(argv=None) -> None:
@@ -46,7 +67,10 @@ def main(argv=None) -> None:
         auralis, store, spotify = build_demo()
     else:
         auralis, store, spotify = build_real()
-    uvicorn.run(create_app(auralis, store, spotify), host=args.host, port=args.port)
+    app = create_app(auralis, store, spotify)
+    if not args.demo:
+        attach_discord(app, store)
+    uvicorn.run(app, host=args.host, port=args.port)
 
 
 if __name__ == "__main__":

@@ -1,0 +1,36 @@
+# systemd USER unit for the Auralis web service (copy to ~/.config/systemd/user/).
+# Same conventions as the Aethel/Bart units: a user service (linger keeps it
+# running after logout and across reboots), secrets in a file outside the repo.
+#
+# Auralis shares the Pi with Bart and must never get in its way, so it runs at
+# lower CPU priority, is the first thing the kernel stops under memory
+# pressure, and is capped. `claude` is not a daemon: it starts for a run and
+# exits when the run ends, so nothing Claude-related sits in memory when idle.
+[Unit]
+Description=Auralis web service
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/spidey/Auralis
+Environment=PYTHONUNBUFFERED=1
+# systemd user services do not source .bashrc; claude lives in the npm prefix.
+Environment=PATH=/home/spidey/.npm-global/bin:/usr/local/bin:/usr/bin:/bin
+# Holds SPOTIFY_CLIENT_ID, AURALIS_DATA_DIR and the optional WEATHER and DISCORD_*
+# values (mode 600, outside the repo).
+EnvironmentFile=/home/spidey/auralis-data/auralis.env
+ExecStart=/home/spidey/auralis-venv/bin/python -m web --host 0.0.0.0 --port 8090
+Restart=on-failure
+RestartSec=15
+Nice=10
+OOMScoreAdjust=500
+MemoryHigh=700M
+MemoryMax=900M
+TasksMax=128
+# journald rotates itself, so there are no log files to grow.
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=default.target

@@ -207,6 +207,21 @@ class Spotify:
     def active_device(self) -> Optional[Device]:
         return next((d for d in self.devices() if d.is_active), None)
 
+    def current_device(self) -> Optional[Device]:
+        """The device that is playing now, else the last one Spotify remembers.
+
+        The device list only holds devices that are online right now; the
+        player state also remembers the last device used, which is usually the
+        one a listener means by "where I was listening"."""
+        active = self.active_device()
+        if active:
+            return active
+        body = self.client.get("/me/player")
+        device = (body or {}).get("device") or {}
+        if not device.get("id"):  # restricted devices cannot be targeted
+            return None
+        return Device(**device)
+
     def play_track(self, uri: str, device_id: Optional[str] = None) -> None:
         self.client.put(
             "/me/player/play",

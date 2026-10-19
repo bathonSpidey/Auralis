@@ -33,6 +33,9 @@ logger = logging.getLogger(__name__)
 LIKED_SAMPLE = 20
 # Songs from this many latest creations may not come back (back to back only).
 RECENT_CREATIONS = 2
+# Device id the UI/Discord send for "where I'm listening": the playing device,
+# or the last one Spotify remembers.
+CURRENT_DEVICE = "current"
 CURATOR_BUDGET_USD = 3.0
 SONG_BUDGET_USD = 3.0
 
@@ -75,7 +78,9 @@ class Auralis:
         scrapper=None,
         runs_dir: Optional[Path] = None,
         store: Optional[Store] = None,
+        weather=None,
     ):
+        self.weather = weather
         self.advisor = advisor
         self.prompt_generator = PromptGenerator()
         self.spotify = spotify
@@ -363,6 +368,7 @@ class Auralis:
         """Play on the chosen device, else on an active device that is idle.
         Never interrupts what is already playing and never picks a device."""
         try:
+            device_id = self._resolve_device(device_id)
             if device_id is None and self.spotify.is_playing():
                 return False
             self.spotify.play_playlist(uri, device_id=device_id)
@@ -372,6 +378,7 @@ class Auralis:
 
     def _play_song(self, track: dict, device_id: Optional[str]) -> str:
         try:
+            device_id = self._resolve_device(device_id)
             if device_id is None and self.spotify.is_playing():
                 self.spotify.queue_track(track["uri"])
                 return "queued"
@@ -379,6 +386,16 @@ class Auralis:
             return "playing"
         except NoDeviceError:
             return "none"
+
+    def _resolve_device(self, device_id: Optional[str]) -> Optional[str]:
+        """CURRENT_DEVICE becomes the playing or last-used device; if there is
+        none, nothing plays rather than guessing a speaker."""
+        if device_id != CURRENT_DEVICE:
+            return device_id
+        device = self.spotify.current_device()
+        if device is None:
+            raise NoDeviceError("No current or last-used Spotify device")
+        return device.id
 
     # ── context ─────────────────────────────────────────────────────────
     def _listen(self) -> Listening:
@@ -412,20 +429,13 @@ class Auralis:
         self, weather_connector=None, city=None, listening: Optional[Listening] = None
     ):
         listening = listening or self._listen()
-        hour = datetime.now().hour
-        month = datetime.now().month
-        location = (
-            weather_connector.encode_location(city) if weather_connector else None
-        )
-        weather = (
-            weather_connector.get_current_location_weather(city)
-            if weather_connector
-            else None
-        )
-        if location:
-            dt = weather_connector.encode_time(location)
-            hour = dt.hour
-            month = dt.month
+        now = datetime.now()
+        location = weather = None
+        connector = weather_connector or self.weather
+        found = connector.conditions(city) if connector else None
+        if found:  # the listener's local time, wherever the server runs
+            location, weather, now = found.location, found.weather, found.now
+        hour, month = now.hour, now.month
         time_of_day = (
             "morning"
             if hour < 12 and hour >= 4

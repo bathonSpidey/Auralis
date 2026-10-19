@@ -195,6 +195,15 @@ class Store:
                 ]
         return suggestions
 
+    def track_uris(self, suggestion_id: int) -> List[str]:
+        with self._connect() as db:
+            rows = db.execute(
+                "SELECT uri FROM suggestion_tracks WHERE suggestion_id = ? "
+                "ORDER BY position",
+                (suggestion_id,),
+            ).fetchall()
+        return [row["uri"] for row in rows]
+
     # ── feedback ────────────────────────────────────────────────────────
     def rate_track(self, suggestion_id: int, uri: str, rating: Optional[str]) -> None:
         """Rate a song shown in the history. `None` makes it neutral again."""

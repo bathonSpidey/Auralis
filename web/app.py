@@ -13,7 +13,6 @@ from agent.schemas import PlaylistOutcome, SongOutcome
 from web.jobs import Job, JobQueue, QueueFull
 
 STATIC_DIR = Path(__file__).parent / "static"
-SOURCE = "web"
 
 
 class JobRequest(BaseModel):
@@ -57,7 +56,7 @@ def make_runner(auralis, queue_get: Callable[[str], Optional[Job]]):
                 depth=depth,
                 dry_run=job.preview,
                 device_id=job.device_id,
-                source=SOURCE,
+                source=job.source,
                 progress=progress,
             )
         elif job.kind == "song":
@@ -65,7 +64,7 @@ def make_runner(auralis, queue_get: Callable[[str], Optional[Job]]):
                 depth=depth,
                 dry_run=job.preview,
                 device_id=job.device_id,
-                source=SOURCE,
+                source=job.source,
                 progress=progress,
             )
         else:  # commit: turn a finished preview into the real thing
@@ -77,14 +76,14 @@ def make_runner(auralis, queue_get: Callable[[str], Optional[Job]]):
                     parent.prompt,
                     depth,
                     job.device_id,
-                    SOURCE,
+                    job.source,
                 )
             else:
                 outcome = auralis.commit_song(
                     SongOutcome.model_validate(parent.result["outcome"]),
                     depth,
                     job.device_id,
-                    SOURCE,
+                    job.source,
                 )
             return {"kind": parent.kind, "outcome": outcome.model_dump(mode="json")}
         return {"kind": job.kind, "outcome": outcome.model_dump(mode="json")}
@@ -92,8 +91,10 @@ def make_runner(auralis, queue_get: Callable[[str], Optional[Job]]):
     return run
 
 
-def create_app(auralis, store, spotify, queue: Optional[JobQueue] = None) -> FastAPI:
-    app = FastAPI(title="Auralis", docs_url=None, redoc_url=None)
+def create_app(
+    auralis, store, spotify, queue: Optional[JobQueue] = None, lifespan=None
+) -> FastAPI:
+    app = FastAPI(title="Auralis", docs_url=None, redoc_url=None, lifespan=lifespan)
     holder: Dict[str, JobQueue] = {}
     queue = queue or JobQueue(make_runner(auralis, lambda i: holder["q"].get(i)))
     holder["q"] = queue

@@ -213,6 +213,81 @@ class TestContext:
         ]
 
 
+class FakeWeather:
+    def __init__(self, hour, month=10):
+        from datetime import datetime
+
+        from models.location import Location
+        from models.location_temperature import Temperature
+        from src.weather_api_connector import Conditions
+
+        self.found = Conditions(
+            location=Location(name="Rastatt", country="DE", lat=48.8, lon=8.2),
+            weather=Temperature(
+                temp=11.7,
+                feels_like=10.4,
+                pressure=1030,
+                humidity=59,
+                dew_point=3.9,
+                uvi=0.6,
+                clouds=0,
+                visibility=10000,
+                wind_speed=2.2,
+                wind_deg=8,
+                weather=[{"main": "Clear", "description": "clear sky"}],
+            ),
+            now=datetime(2026, month, 19, hour, 5),
+        )
+
+    def conditions(self, city=None):
+        return self.found
+
+
+class TestWeatherAndTime:
+    def test_weather_place_and_local_time_reach_the_prompt_context(self, tmp_path):
+        auralis, _, _ = make_auralis(tmp_path)
+        auralis.weather = FakeWeather(hour=22, month=12)
+        context = auralis.build_context()
+        assert context["my_current_weather"]["temperature"] == 11.7
+        assert context["my_current_weather"]["weather"]["description"] == "clear sky"
+        assert context["my_current_location"] == {"country": "DE", "city": "Rastatt"}
+        assert context["time_of_day"] == "night"
+        assert context["season"] == "winter"
+
+    def test_without_weather_time_still_comes_from_the_clock(self, tmp_path):
+        context = make_auralis(tmp_path)[0].build_context()
+        assert context["time_of_day"] in {
+            "morning",
+            "afternoon",
+            "evening",
+            "night",
+            "late night",
+        }
+        assert context["my_current_location"] is None
+
+    def test_failed_weather_lookup_is_not_fatal(self, tmp_path):
+        auralis, _, _ = make_auralis(tmp_path)
+        auralis.weather = type("Down", (), {"conditions": lambda self, c=None: None})()
+        assert auralis.build_context()["my_current_weather"] is None
+
+
+class TestCurrentDevice:
+    def test_current_means_the_playing_or_last_used_device(self, tmp_path):
+        spotify = FakeSpotify()
+        spotify.current_device = lambda: type("D", (), {"id": "last-speaker"})()
+        auralis, _, _ = make_auralis(tmp_path, spotify=spotify)
+        assert auralis._start_playlist("spotify:playlist:p1", "current") is True
+        assert spotify.played == [("playlist", "spotify:playlist:p1", "last-speaker")]
+
+    def test_no_current_device_means_nothing_plays(self, tmp_path):
+        spotify = FakeSpotify()
+        spotify.current_device = lambda: None
+        auralis, _, _ = make_auralis(tmp_path, spotify=spotify)
+        assert auralis._start_playlist("spotify:playlist:p1", "current") is False
+        assert auralis._play_song({"uri": "spotify:track:x"}, "current") == "none"
+        assert spotify.played == []
+
+
 class TestLikedSongsAreOptional:
     def test_a_missing_scope_degrades_instead_of_failing(self, tmp_path, caplog):
         spotify = FakeSpotify()
