@@ -86,8 +86,10 @@ class Auralis:
         runs_dir: Optional[Path] = None,
         store: Optional[Store] = None,
         weather=None,
+        home=None,
     ):
         self.weather = weather
+        self.home = home  # live readings from the listener's home, if any
         self.advisor = advisor
         self.prompt_generator = PromptGenerator()
         self.spotify = spotify
@@ -522,6 +524,7 @@ class Auralis:
                 if listening.now_playing
                 else None
             ),
+            "home_now": self.home.current() if self.home else None,
             "trending_charts": charts,
             "my_current_weather": weather.model_dump() if weather else None,
             "my_current_location": location.model_dump(exclude={"lat", "lon"})

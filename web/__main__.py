@@ -42,6 +42,7 @@ def build_real():
 def attach_background(app, auralis, store, spotify) -> None:
     """Run the Discord bot (when configured) and the DJ inside this process, so
     one Python process serves the page, the bot and the auto-queue."""
+    from agent.home import HomeState
     from discord_bot.bot import AuralisBot, Settings, lifespan_for
     from web.dj import Dj
 
@@ -54,6 +55,7 @@ def attach_background(app, auralis, store, spotify) -> None:
     if bot:
         bot.dj = dj
     app.state.dj = dj
+    app.state.home = auralis.home = HomeState(store)
     app.router.lifespan_context = lifespan_for(bot, dj)
 
 

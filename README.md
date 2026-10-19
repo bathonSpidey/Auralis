@@ -10,7 +10,7 @@ It is made to run on a small always-on machine (a Raspberry Pi) and to stay out 
 
 - **Playlist.** Describe a moment ("a one-hour focus session, instrumental but not boring") and get a playlist in your Spotify. Mention a length and it fits.
 - **Song of the moment.** One new song for right now. With Spotify open it goes straight to your queue; a daily song can be posted to Discord.
-- **DJ mode.** Off by default. While music is playing, a fresh song that flows after what you are hearing is added to your queue every 30 minutes (10 to 180, your choice), and Discord is told. Pausing for ten minutes ends the session, and a daily cap keeps it from running away. Switch it on from the page or with `/dj`.
+- **DJ mode.** Off by default. While music is playing, a fresh song that flows after what you are hearing is added to your queue every 30 minutes (10 to 180, your choice), and Discord is told. Pausing for ten minutes ends the session, and a daily cap keeps it from running away. Switch it on from the page or with `/dj`. It can also be started from outside: `POST /api/dj/now` (for Home Assistant) queues one song when the caller decides it is time, and `PUT /api/home` records readings from the home (room temperature, light, who is in) that shape the mood of every pick. Both take an `X-Auralis-Token` header when `AURALIS_TRIGGER_TOKEN` is set.
 - **Knows your taste.** It reads your recent plays, top tracks, playlists and liked songs, and prefers discoveries over what you already know.
 - **Knows the moment.** Local time of day, season and current weather go into every request.
 - **Research depth.** _Quick_ uses your taste only, _Auto_ searches the web when it needs to, _Deep_ researches properly. Pick it per request.

@@ -830,3 +830,20 @@ class TestPlaybackFailureKeepsTheChoice:
         auralis, _, _ = make_auralis(tmp_path, spotify=spotify)
         outcome = auralis.playlist_generator("upbeat", device_id="kitchen")
         assert outcome.playback == "none" and outcome.playlist_url
+
+
+class TestHomeContext:
+    def test_readings_from_the_home_reach_the_prompt_context(self, tmp_path):
+        from agent.home import HomeState
+
+        auralis, _, _ = make_auralis(tmp_path)
+        auralis.home = HomeState(Store(tmp_path / "h.db"))
+        auralis.home.update({"room_temperature_c": 23.5, "anyone_home": True})
+        assert auralis.build_context()["home_now"] == {
+            "room_temperature_c": 23.5,
+            "anyone_home": True,
+        }
+
+    def test_no_home_means_none(self, tmp_path):
+        auralis, _, _ = make_auralis(tmp_path)
+        assert auralis.build_context()["home_now"] is None

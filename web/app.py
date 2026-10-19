@@ -3,7 +3,7 @@
 import hmac
 import os
 from pathlib import Path
-from typing import Callable, Dict, Literal, Optional
+from typing import Callable, Dict, Literal, Optional, Union
 
 from fastapi import FastAPI, Header, HTTPException, Query
 from fastapi.responses import FileResponse, JSONResponse
@@ -11,6 +11,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, model_validator
 
 from agent.depth import Depth
+from agent.home import HomeError
 from agent.schemas import PlaylistOutcome, SongOutcome
 from web.jobs import Job, JobQueue, QueueFull
 
@@ -104,6 +105,22 @@ class DjRequest(BaseModel):
 class TriggerRequest(BaseModel):
     hint: str = Field(default="", max_length=500)
     require_playing: bool = True
+    # Readings from the home to record before picking, e.g.
+    # {"room_temperature_c": 22.5, "lux": 40, "anyone_home": true}.
+    context: Dict[str, Optional[Union[bool, int, float, str]]] = Field(
+        default_factory=dict
+    )
+
+
+class HomeRequest(BaseModel):
+    values: Dict[str, Optional[Union[bool, int, float, str]]]
+
+
+def _check_token(supplied: Optional[str]) -> None:
+    """Writes from Home Assistant carry a shared token when one is configured."""
+    expected = os.getenv("AURALIS_TRIGGER_TOKEN")
+    if expected and not hmac.compare_digest(supplied or "", expected):
+        raise HTTPException(401, "Missing or wrong X-Auralis-Token")
 
 
 def create_app(
@@ -237,14 +254,40 @@ def create_app(
     ):
         """For Home Assistant: queue one song now. Answers straight away with
         {"status": "started"} or {"status": "skipped", "reason": ...}."""
-        expected = os.getenv("AURALIS_TRIGGER_TOKEN")
-        if expected and not hmac.compare_digest(x_auralis_token or "", expected):
-            raise HTTPException(401, "Missing or wrong X-Auralis-Token")
+        _check_token(x_auralis_token)
         dj = getattr(app.state, "dj", None)
         if dj is None:
             raise HTTPException(404, "DJ mode is not available")
         request = request or TriggerRequest()
+        if request.context:
+            home = getattr(app.state, "home", None)
+            if home is None:
+                raise HTTPException(404, "Home readings are not available")
+            try:
+                home.update(request.context)
+            except HomeError as e:
+                raise HTTPException(422, str(e))
         return await dj.trigger(request.hint, request.require_playing)
+
+    @app.get("/api/home")
+    def home_now():
+        home = getattr(app.state, "home", None)
+        return {"values": home.current() if home else None}
+
+    @app.put("/api/home")
+    def home_update(
+        request: HomeRequest, x_auralis_token: Optional[str] = Header(default=None)
+    ):
+        """For Home Assistant: record readings from the home. Merges into what
+        is known; a value of null forgets that key."""
+        _check_token(x_auralis_token)
+        home = getattr(app.state, "home", None)
+        if home is None:
+            raise HTTPException(404, "Home readings are not available")
+        try:
+            return {"values": home.update(request.values)}
+        except HomeError as e:
+            raise HTTPException(422, str(e))
 
     @app.get("/api/now")
     def now():

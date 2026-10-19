@@ -480,3 +480,80 @@ class TestTriggerEndpoint:
         world.client.app.state.dj = Dj(object(), world.queue, world.store)
         body = world.client.put("/api/dj", json={"polling": False}).json()
         assert body["polling"] is False
+
+
+class TestHomeEndpoints:
+    @pytest.fixture(autouse=True)
+    def no_token(self, monkeypatch):
+        monkeypatch.delenv("AURALIS_TRIGGER_TOKEN", raising=False)
+
+    def with_home(self, world):
+        from agent.home import HomeState
+
+        world.client.app.state.home = HomeState(world.store)
+        return world.client.app.state.home
+
+    def test_readings_are_merged_and_readable(self, world):
+        self.with_home(world)
+        put = world.client.put(
+            "/api/home", json={"values": {"Room Temp C": 22.5, "lux": 40}}
+        )
+        assert put.json() == {"values": {"room_temp_c": 22.5, "lux": 40}}
+        world.client.put("/api/home", json={"values": {"lux": None}})
+        assert world.client.get("/api/home").json() == {"values": {"room_temp_c": 22.5}}
+
+    def test_nothing_reported_yet(self, world):
+        self.with_home(world)
+        assert world.client.get("/api/home").json() == {"values": None}
+
+    def test_bad_readings_are_refused_with_the_reason(self, world):
+        self.with_home(world)
+        response = world.client.put("/api/home", json={"values": {"!!!": 1}})
+        assert response.status_code == 422 and "usable key" in response.json()["detail"]
+        nested = world.client.put("/api/home", json={"values": {"a": {"b": 1}}})
+        assert nested.status_code == 422
+
+    def test_writing_needs_the_token_when_one_is_configured(self, world, monkeypatch):
+        self.with_home(world)
+        monkeypatch.setenv("AURALIS_TRIGGER_TOKEN", "s3cret")
+        body = {"values": {"lux": 5}}
+        assert world.client.put("/api/home", json=body).status_code == 401
+        headers = {"X-Auralis-Token": "s3cret"}
+        assert (
+            world.client.put("/api/home", json=body, headers=headers).status_code == 200
+        )
+
+    def test_unavailable_without_home_state(self, world):
+        assert world.client.put("/api/home", json={"values": {}}).status_code == 404
+        assert world.client.get("/api/home").json() == {"values": None}
+
+    def test_a_trigger_can_carry_readings_that_are_recorded_first(self, world):
+        home = self.with_home(world)
+        calls = []
+
+        class FakeDj:
+            async def trigger(self, hint, require_playing):
+                calls.append((hint, require_playing, home.current()))
+                return {"status": "started"}
+
+        world.client.app.state.dj = FakeDj()
+        body = {
+            "hint": "evening",
+            "context": {"room_temperature_c": 24.1, "dark": True},
+        }
+        response = world.client.post("/api/dj/now", json=body)
+        assert response.json() == {"status": "started"}
+        assert calls == [("evening", True, {"room_temperature_c": 24.1, "dark": True})]
+
+    def test_a_trigger_with_bad_readings_does_not_run(self, world):
+        self.with_home(world)
+        calls = []
+
+        class FakeDj:
+            async def trigger(self, hint, require_playing):
+                calls.append(1)
+                return {"status": "started"}
+
+        world.client.app.state.dj = FakeDj()
+        response = world.client.post("/api/dj/now", json={"context": {"a": [1]}})
+        assert response.status_code == 422 and calls == []
