@@ -40,7 +40,13 @@ def dj_embed(status: dict) -> discord.Embed:
         else "Turn it on and a fresh song joins your queue every so often while "
         "music is playing."
     )
-    if status["enabled"]:
+    if status["enabled"] and not status.get("polling", True):
+        embed.description = (
+            "Home Assistant decides when: it asks Auralis for a song and it is "
+            "added to your queue."
+        )
+        embed.add_field(name="Next song", value="When Home Assistant asks")
+    elif status["enabled"]:
         if status["listening"] and status["next_at"]:
             embed.add_field(name="Next song", value=f"<t:{int(status['next_at'])}:R>")
         else:

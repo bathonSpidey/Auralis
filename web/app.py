@@ -1,9 +1,11 @@
 """The Auralis web service: a small JSON API plus the single-page UI."""
 
+import hmac
+import os
 from pathlib import Path
 from typing import Callable, Dict, Literal, Optional
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, Header, HTTPException, Query
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field, model_validator
@@ -60,12 +62,14 @@ def make_runner(auralis, queue_get: Callable[[str], Optional[Job]]):
                 progress=progress,
             )
         elif job.kind == "song":
+            note = {"hint": job.prompt} if job.prompt else {}
             outcome = auralis.song_of_the_moment_suggestion(
                 depth=depth,
                 dry_run=job.preview,
                 device_id=job.device_id,
                 source=job.source,
                 progress=progress,
+                **note,
             )
         else:  # commit: turn a finished preview into the real thing
             parent = queue_get(job.parent)
@@ -94,6 +98,12 @@ def make_runner(auralis, queue_get: Callable[[str], Optional[Job]]):
 class DjRequest(BaseModel):
     enabled: Optional[bool] = None
     minutes: Optional[int] = Field(default=None, ge=1, le=1000)
+    polling: Optional[bool] = None
+
+
+class TriggerRequest(BaseModel):
+    hint: str = Field(default="", max_length=500)
+    require_playing: bool = True
 
 
 def create_app(
@@ -212,9 +222,29 @@ def create_app(
         if dj is None:
             raise HTTPException(404, "DJ mode is not available")
         try:
-            return dj.configure(enabled=request.enabled, minutes=request.minutes)
+            return dj.configure(
+                enabled=request.enabled,
+                minutes=request.minutes,
+                polling=request.polling,
+            )
         except ValueError as e:
             raise HTTPException(422, str(e))
+
+    @app.post("/api/dj/now")
+    async def dj_now(
+        request: Optional[TriggerRequest] = None,
+        x_auralis_token: Optional[str] = Header(default=None),
+    ):
+        """For Home Assistant: queue one song now. Answers straight away with
+        {"status": "started"} or {"status": "skipped", "reason": ...}."""
+        expected = os.getenv("AURALIS_TRIGGER_TOKEN")
+        if expected and not hmac.compare_digest(x_auralis_token or "", expected):
+            raise HTTPException(401, "Missing or wrong X-Auralis-Token")
+        dj = getattr(app.state, "dj", None)
+        if dj is None:
+            raise HTTPException(404, "DJ mode is not available")
+        request = request or TriggerRequest()
+        return await dj.trigger(request.hint, request.require_playing)
 
     @app.get("/api/now")
     def now():

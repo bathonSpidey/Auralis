@@ -212,3 +212,89 @@ class TestSessions:
         world.time.minutes(10)
         status = world.dj.status()
         assert status["next_at"] == pytest.approx(world.time.now + 20 * 60)
+
+
+class TestTriggered:
+    """Home Assistant starts the song; Auralis only checks the rules."""
+
+    def trigger(self, world, **kwargs):
+        async def go():
+            result = await world.dj.trigger(**kwargs)
+            while world.dj._tasks:  # let the background pick finish
+                world.queue.run_pending()
+                await asyncio.sleep(0.01)
+            return result
+
+        return asyncio.run(go())
+
+    def test_a_trigger_queues_one_song_and_announces_it(self, world):
+        world.dj.configure(enabled=True, polling=False)
+        assert self.trigger(world, hint="rainy evening, working at the desk") == {
+            "status": "started"
+        }
+        job = world.runs[0]
+        assert (job.kind, job.source, job.depth) == ("song", "ha", "quick")
+        assert job.prompt == "rainy evening, working at the desk"
+        assert len(world.told) == 1 and world.dj.status()["added_today"] == 1
+
+    def test_nothing_happens_while_dj_mode_is_off(self, world):
+        result = self.trigger(world)
+        assert result == {"status": "skipped", "reason": "DJ mode is off"}
+        assert world.runs == []
+
+    def test_nothing_is_queued_into_silence(self, world):
+        world.dj.configure(enabled=True)
+        world.spotify.playing = False
+        assert self.trigger(world)["reason"] == "nothing is playing"
+        assert world.runs == []
+
+    def test_require_playing_can_be_waived(self, world):
+        world.dj.configure(enabled=True)
+        world.spotify.playing = False
+        assert self.trigger(world, require_playing=False)["status"] == "started"
+
+    def test_a_second_call_too_soon_is_refused(self, world):
+        world.dj.configure(enabled=True)
+        assert self.trigger(world)["status"] == "started"
+        world.time.minutes(2)
+        assert self.trigger(world)["reason"] == "too soon after the last song"
+        world.time.minutes(4)
+        assert self.trigger(world)["status"] == "started"
+        assert len(world.runs) == 2
+
+    def test_the_daily_cap_applies(self, world):
+        world.dj.max_per_day = 1
+        world.dj.configure(enabled=True)
+        assert self.trigger(world)["status"] == "started"
+        world.time.minutes(10)
+        assert "already added" in self.trigger(world)["reason"]
+
+    def test_it_waits_behind_a_request_of_your_own(self, world):
+        world.dj.configure(enabled=True)
+        world.queue.submit("playlist", prompt="mine")
+        assert self.trigger(world)["reason"] == "busy with another request"
+
+    def test_a_spotify_hiccup_is_a_skip_not_an_error(self, world):
+        world.dj.configure(enabled=True)
+        world.spotify.broken = True
+        assert self.trigger(world)["reason"] == "could not read Spotify"
+
+    def test_the_hint_is_kept_short_and_on_one_line(self):
+        text = "line one\n\n   line two " + "x" * 400
+        cleaned = dj_module.clean_hint(text)
+        assert "\n" not in cleaned and len(cleaned) <= dj_module.HINT_MAX
+        assert dj_module.clean_hint(None) == ""
+
+
+class TestPollingSwitch:
+    def test_polling_is_on_by_default_and_can_be_turned_off(self, world):
+        assert world.dj.polling is True
+        assert world.dj.configure(polling=False)["polling"] is False
+
+    def test_with_polling_off_auralis_does_not_watch_spotify(self, world):
+        world.dj.configure(enabled=True, minutes=10, polling=False)
+        world.spotify.broken = True  # any call to Spotify would raise
+        world.tick()
+        world.time.minutes(60)
+        world.tick()
+        assert world.runs == [] and world.dj.status()["listening"] is False

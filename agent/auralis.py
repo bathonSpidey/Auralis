@@ -265,6 +265,7 @@ class Auralis:
         excluded: Sequence[Tuple[str, str]] = (),
         source: str = "web",
         progress: Progress = None,
+        hint: str = "",
     ) -> SongOutcome:
         plan = PLANS[Depth(depth)]
         _report(progress, "taste")
@@ -288,7 +289,7 @@ class Auralis:
                     "submit_song. Choose a song and submit it now."
                 )
                 system, user = self.prompt_generator.song(
-                    context, plan.guidance, note, feedback
+                    context, plan.guidance, note, feedback, hint
                 )
                 answer = SongAnswer.model_validate(
                     self.advisor.advise(

@@ -220,7 +220,9 @@ async function loadDj() {
       select.append(h("option", { value: dj.minutes }, `every ${dj.minutes} min`));
     }
     select.value = String(dj.minutes);
-    select.disabled = !dj.enabled;
+    select.disabled = !dj.enabled || !dj.polling;
+    $("#dj-trigger").value = dj.polling ? "self" : "ha";
+    $("#dj-trigger").disabled = !dj.enabled;
     $("#dj-hint").textContent = djHint(dj);
   } catch (_) { bar.hidden = true; }
 }
@@ -228,7 +230,8 @@ async function loadDj() {
 function djHint(dj) {
   if (!dj.enabled) return "Off";
   const parts = [];
-  if (!dj.listening) parts.push("Waiting for music to play");
+  if (!dj.polling) parts.push("Waiting for Home Assistant");
+  else if (!dj.listening) parts.push("Waiting for music to play");
   else if (dj.next_at) {
     const minutes = Math.max(0, Math.round((dj.next_at * 1000 - Date.now()) / 60000));
     parts.push(minutes <= 1 ? "Next song any moment" : `Next song in about ${minutes} min`);
@@ -273,6 +276,7 @@ function buildComposer() {
   $("#device").addEventListener("change", (e) => { settings.device = e.target.value; saveSettings(); });
   $("#dj-on").addEventListener("change", (e) => saveDj({ enabled: e.target.checked }));
   $("#dj-minutes").addEventListener("change", (e) => saveDj({ minutes: Number(e.target.value) }));
+  $("#dj-trigger").addEventListener("change", (e) => saveDj({ polling: e.target.value === "self" }));
   $("#song-web").checked = settings.songWeb;
   $("#song-web").addEventListener("change", (e) => { settings.songWeb = e.target.checked; saveSettings(); });
   $("#playlist-form").addEventListener("submit", (e) => { e.preventDefault(); submitPlaylist(); });

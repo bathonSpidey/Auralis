@@ -414,3 +414,69 @@ class TestDj:
         world.client.app.state.dj = Dj(object(), world.queue, world.store)
         response = world.client.put("/api/dj", json={"minutes": 3})
         assert response.status_code == 422 and "minutes" in response.json()["detail"]
+
+
+class TestTriggerEndpoint:
+    def dj_with(self, world, result=None):
+        class FakeDj:
+            def __init__(self):
+                self.calls = []
+
+            async def trigger(self, hint, require_playing):
+                self.calls.append((hint, require_playing))
+                return result or {"status": "started"}
+
+        dj = FakeDj()
+        world.client.app.state.dj = dj
+        return dj
+
+    def test_a_trigger_passes_the_hint_along(self, world, monkeypatch):
+        monkeypatch.delenv("AURALIS_TRIGGER_TOKEN", raising=False)
+        dj = self.dj_with(world)
+        body = {"hint": "rainy", "require_playing": False}
+        response = world.client.post("/api/dj/now", json=body)
+        assert response.json() == {"status": "started"}
+        assert dj.calls == [("rainy", False)]
+
+    def test_no_body_means_defaults(self, world, monkeypatch):
+        monkeypatch.delenv("AURALIS_TRIGGER_TOKEN", raising=False)
+        dj = self.dj_with(world)
+        assert world.client.post("/api/dj/now").status_code == 200
+        assert dj.calls == [("", True)]
+
+    def test_a_skip_is_a_normal_answer(self, world, monkeypatch):
+        monkeypatch.delenv("AURALIS_TRIGGER_TOKEN", raising=False)
+        self.dj_with(world, {"status": "skipped", "reason": "nothing is playing"})
+        body = world.client.post("/api/dj/now").json()
+        assert body == {"status": "skipped", "reason": "nothing is playing"}
+
+    def test_the_token_is_required_when_one_is_configured(self, world, monkeypatch):
+        monkeypatch.setenv("AURALIS_TRIGGER_TOKEN", "s3cret")
+        dj = self.dj_with(world)
+        assert world.client.post("/api/dj/now").status_code == 401
+        wrong = {"X-Auralis-Token": "nope"}
+        assert world.client.post("/api/dj/now", headers=wrong).status_code == 401
+        right = {"X-Auralis-Token": "s3cret"}
+        assert world.client.post("/api/dj/now", headers=right).status_code == 200
+        assert len(dj.calls) == 1
+
+    def test_unavailable_without_a_dj(self, world, monkeypatch):
+        monkeypatch.delenv("AURALIS_TRIGGER_TOKEN", raising=False)
+        assert world.client.post("/api/dj/now").status_code == 404
+
+    def test_a_song_job_with_a_hint_reaches_the_picker(self, world):
+        world.auralis.song_of_the_moment_suggestion = lambda **kw: (
+            world.auralis.calls.append(("hint", kw.get("hint")))
+            or SongOutcome(track=track(1), reason="r", playback="queued", dry_run=False)
+        )
+        job = world.queue.submit("song", prompt="late and rainy", depth="quick")
+        world.run_all()
+        assert ("hint", "late and rainy") in world.auralis.calls
+        assert world.queue.snapshot(job.id)["status"] == "done"
+
+    def test_the_polling_switch_is_part_of_the_dj_settings(self, world):
+        from web.dj import Dj
+
+        world.client.app.state.dj = Dj(object(), world.queue, world.store)
+        body = world.client.put("/api/dj", json={"polling": False}).json()
+        assert body["polling"] is False
