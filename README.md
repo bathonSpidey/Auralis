@@ -42,7 +42,7 @@ The rules are enforced in code, not in the prompt. The only way to create a play
 
 | Command                                          | What it does                                                 |
 | :----------------------------------------------- | :----------------------------------------------------------- |
-| `/song [web] [play]`                             | One new song. `web` also searches the web, `play` plays it.  |
+| `/song [web] [play]`                             | One new song. `web` also searches the web, `play` starts it if nothing is playing (otherwise it is queued). |
 | `/playlist <prompt> [depth] [play]`              | Builds and creates a playlist.                               |
 | `/dj [on/off/status] [minutes]`                  | DJ mode: queue a fresh song every so often while you listen. |
 | `/history [count]`                               | The most recent suggestions.                                 |

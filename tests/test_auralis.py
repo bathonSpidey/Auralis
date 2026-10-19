@@ -847,3 +847,31 @@ class TestHomeContext:
     def test_no_home_means_none(self, tmp_path):
         auralis, _, _ = make_auralis(tmp_path)
         assert auralis.build_context()["home_now"] is None
+
+
+class TestSongNeverInterrupts:
+    def test_a_chosen_device_queues_when_music_is_already_playing(self, tmp_path):
+        auralis, spotify, _ = make_auralis(tmp_path, spotify=FakeSpotify(playing=True))
+        outcome = auralis.song_of_the_moment_suggestion(device_id="kitchen")
+        assert outcome.playback == "queued"
+        assert spotify.queued == [URIS[0]] and spotify.played == []
+
+    def test_where_im_listening_also_queues_when_playing(self, tmp_path):
+        spotify = FakeSpotify(playing=True)
+        spotify.current_device = lambda: type("D", (), {"id": "pc"})()
+        auralis, _, _ = make_auralis(tmp_path, spotify=spotify)
+        outcome = auralis.song_of_the_moment_suggestion(device_id="current")
+        assert outcome.playback == "queued" and spotify.played == []
+
+    def test_a_chosen_device_starts_it_only_when_nothing_is_playing(self, tmp_path):
+        auralis, spotify, _ = make_auralis(tmp_path, spotify=FakeSpotify(playing=False))
+        outcome = auralis.song_of_the_moment_suggestion(device_id="kitchen")
+        assert outcome.playback == "playing"
+        assert spotify.played == [("track", URIS[0], "kitchen")]
+        assert spotify.queued == []
+
+    def test_confirming_a_previewed_song_queues_it_too(self, tmp_path):
+        auralis, spotify, _ = make_auralis(tmp_path, spotify=FakeSpotify(playing=True))
+        preview = auralis.song_of_the_moment_suggestion(dry_run=True)
+        result = auralis.commit_song(preview, device_id="kitchen")
+        assert result.playback == "queued" and spotify.played == []
