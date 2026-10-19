@@ -377,9 +377,14 @@ class Auralis:
             return False
 
     def _play_song(self, track: dict, device_id: Optional[str]) -> str:
+        """A chosen device plays the song. Otherwise, if Spotify is open on
+        some device, the song is added to its queue (never cutting in on what
+        is playing); with Spotify closed it is only recorded."""
         try:
             device_id = self._resolve_device(device_id)
-            if device_id is None and self.spotify.is_playing():
+            if device_id is None:
+                if self.spotify.active_device() is None:
+                    return "none"
                 self.spotify.queue_track(track["uri"])
                 return "queued"
             self.spotify.play_track(track["uri"], device_id=device_id)

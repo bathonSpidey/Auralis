@@ -31,6 +31,9 @@ URIS = [song.uri for song in CATALOGUE]
 
 
 class FakeSpotify:
+    def active_device(self):
+        return object() if self.has_device else None
+
     def __init__(self, playing=False, has_device=True):
         self.playing = playing
         self.has_device = has_device
@@ -448,25 +451,35 @@ class TestPlaylistPlayback:
 
 
 class TestSong:
-    def test_picks_and_plays_a_song_with_no_web_by_default(self, tmp_path):
+    def test_picks_a_song_with_no_web_by_default_and_queues_it(self, tmp_path):
         auralis, spotify, advisor = make_auralis(tmp_path)
         outcome = auralis.song_of_the_moment_suggestion()
         assert isinstance(outcome, SongOutcome)
         assert outcome.track.uri == URIS[0] and outcome.reason == "Because."
-        assert outcome.playback == "playing"
         call = advisor.calls[0]
         assert call["stage"] == "song" and call["builtin_tools"] == ()
-        assert spotify.played == [("track", URIS[0], None)]
+        # Spotify is open: queued, never started on its own
+        assert outcome.playback == "queued"
+        assert spotify.queued == [URIS[0]] and spotify.played == []
 
-    def test_queues_when_something_is_already_playing(self, tmp_path):
+    def test_queues_even_while_something_is_playing(self, tmp_path):
         auralis, spotify, _ = make_auralis(tmp_path, spotify=FakeSpotify(playing=True))
         outcome = auralis.song_of_the_moment_suggestion()
         assert outcome.playback == "queued" and spotify.queued == [URIS[0]]
 
+    def test_a_chosen_device_plays_the_song(self, tmp_path):
+        auralis, spotify, _ = make_auralis(tmp_path)
+        outcome = auralis.song_of_the_moment_suggestion(device_id="kitchen")
+        assert outcome.playback == "playing"
+        assert spotify.played == [("track", URIS[0], "kitchen")]
+        assert spotify.queued == []
+
     def test_no_device_still_returns_the_song(self, tmp_path):
-        auralis, _, _ = make_auralis(tmp_path, spotify=FakeSpotify(has_device=False))
+        spotify = FakeSpotify(has_device=False)
+        auralis, _, _ = make_auralis(tmp_path, spotify=spotify)
         outcome = auralis.song_of_the_moment_suggestion()
         assert outcome.playback == "none" and outcome.track.title == "T1"
+        assert spotify.queued == [] and spotify.played == []
 
     def test_dry_run_plays_nothing(self, tmp_path):
         auralis, spotify, _ = make_auralis(tmp_path)

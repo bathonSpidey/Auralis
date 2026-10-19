@@ -207,7 +207,8 @@ async function submitPlaylist() {
 }
 
 async function submitSong() {
-  await startJob({ kind: "song", depth: settings.songWeb ? "auto" : "quick", ...common() });
+  // No preview step: with Spotify open the song goes straight to the queue.
+  await startJob({ kind: "song", depth: settings.songWeb ? "auto" : "quick", ...common(), preview: false });
 }
 
 async function startJob(payload) {
@@ -305,7 +306,8 @@ function spotifyTrackUrl(uri) { return "https://open.spotify.com/track/" + uri.s
 
 function playbackLabel(outcome) {
   if (outcome.dry_run) return "Not created yet";
-  return { playing: "Playing now", queued: "Added to your queue", none: "Created, not played" }[outcome.playback];
+  const created = outcome.track ? "Saved, Spotify isn't open" : "Created, not played";
+  return { playing: "Playing now", queued: "Added to your queue", none: created }[outcome.playback];
 }
 
 function trackList(tracks, { suggestionId = null, ratings = {} } = {}) {
@@ -377,7 +379,7 @@ function resultPanel(job) {
       h("span", { class: "pill" }, `${tracks.length} ${tracks.length === 1 ? "track" : "tracks"}`),
       h("span", { class: "pill" }, `${job.depth} research`),
       h("span", { class: "pill" }, playbackLabel(outcome)),
-      outcome.playlist_url && h("a", { class: "link", href: outcome.playlist_url, target: "_blank", rel: "noopener" }, "Open in Spotify"),
+      (outcome.playlist_url || isSong) && h("a", { class: "link", href: outcome.playlist_url || spotifyTrackUrl(outcome.track.uri), target: "_blank", rel: "noopener" }, "Open in Spotify"),
     ),
     outcome.research && h("details", { class: "how" }, h("summary", {}, "How Auralis looked"), h("p", {}, outcome.research)),
     trackList(tracks, { suggestionId: preview ? null : outcome.id }),
