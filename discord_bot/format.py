@@ -24,6 +24,40 @@ PLAYBACK = {
 }
 
 
+QUEUE_REPLY = {
+    "queued": "Added to your queue.",
+    "none": "Spotify isn't open on any device. Start it and press the button again.",
+}
+
+
+def dj_embed(status: dict) -> discord.Embed:
+    state = "On" if status["enabled"] else "Off"
+    embed = discord.Embed(title=f"DJ mode · {state}", color=ACCENT)
+    embed.description = (
+        f"While music is playing, a fresh song joins your queue every "
+        f"{status['minutes']} minutes."
+        if status["enabled"]
+        else "Turn it on and a fresh song joins your queue every so often while "
+        "music is playing."
+    )
+    if status["enabled"]:
+        if status["listening"] and status["next_at"]:
+            embed.add_field(name="Next song", value=f"<t:{int(status['next_at'])}:R>")
+        else:
+            embed.add_field(name="Next song", value="Starts when music is playing")
+    if status["last"]:
+        last = status["last"]
+        embed.add_field(
+            name="Last added",
+            value=f"{last['title']} · {last['artist']} (<t:{int(last['at'])}:R>)",
+            inline=False,
+        )
+    embed.set_footer(
+        text=f"{status['added_today']} of {status['max_per_day']} songs added today"
+    )
+    return embed
+
+
 def track_url(uri: str) -> Optional[str]:
     parts = uri.split(":")
     if len(parts) == 3 and parts[0] == "spotify":

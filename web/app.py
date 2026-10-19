@@ -91,8 +91,17 @@ def make_runner(auralis, queue_get: Callable[[str], Optional[Job]]):
     return run
 
 
+class DjRequest(BaseModel):
+    enabled: Optional[bool] = None
+    minutes: Optional[int] = Field(default=None, ge=1, le=1000)
+
+
 def create_app(
-    auralis, store, spotify, queue: Optional[JobQueue] = None, lifespan=None
+    auralis,
+    store,
+    spotify,
+    queue: Optional[JobQueue] = None,
+    lifespan=None,
 ) -> FastAPI:
     app = FastAPI(title="Auralis", docs_url=None, redoc_url=None, lifespan=lifespan)
     holder: Dict[str, JobQueue] = {}
@@ -191,6 +200,21 @@ def create_app(
             return {"devices": found, "error": None}
         except Exception as e:  # the page still works without the list
             return JSONResponse({"devices": [], "error": str(e)[:200]})
+
+    @app.get("/api/dj")
+    def dj_status():
+        dj = getattr(app.state, "dj", None)  # set once the DJ is built
+        return dj.status() if dj else {"available": False}
+
+    @app.put("/api/dj")
+    def dj_configure(request: DjRequest):
+        dj = getattr(app.state, "dj", None)
+        if dj is None:
+            raise HTTPException(404, "DJ mode is not available")
+        try:
+            return dj.configure(enabled=request.enabled, minutes=request.minutes)
+        except ValueError as e:
+            raise HTTPException(422, str(e))
 
     @app.get("/api/now")
     def now():

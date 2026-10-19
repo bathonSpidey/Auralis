@@ -298,3 +298,26 @@ class TestPlayback:
         )
         spotify.delete_playlist("spotify:playlist:p1")
         assert session.calls[0]["params"] == {"uris": "spotify:playlist:p1"}
+
+
+class TestNowPlaying:
+    def playing(self, item, is_playing=True):
+        return {
+            ("GET", "/me/player/currently-playing"): ok(
+                {"is_playing": is_playing, "item": item}
+            )
+        }
+
+    def test_the_playing_track(self):
+        spotify, _ = make_spotify(self.playing(track("1", "One")))
+        assert spotify.now_playing().name == "One"
+
+    def test_paused_nothing_or_a_podcast_is_not_a_song(self):
+        for routes in (
+            self.playing(track("1", "One"), is_playing=False),
+            self.playing({**track("2", "Episode"), "type": "episode"}),
+            self.playing(None),
+            {("GET", "/me/player/currently-playing"): FakeResponse(204)},
+        ):
+            spotify, _ = make_spotify(routes)
+            assert spotify.now_playing() is None

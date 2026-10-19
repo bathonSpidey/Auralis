@@ -39,16 +39,22 @@ def build_real():
     )
 
 
-def attach_discord(app, store) -> None:
-    """Run the Discord bot inside this process when it is configured, so one
-    Python process serves both the page and the bot."""
+def attach_background(app, auralis, store, spotify) -> None:
+    """Run the Discord bot (when configured) and the DJ inside this process, so
+    one Python process serves the page, the bot and the auto-queue."""
     from discord_bot.bot import AuralisBot, Settings, lifespan_for
+    from web.dj import Dj
 
     settings = Settings.from_env()
-    if settings is None:
-        return
-    bot = AuralisBot(settings, app.state.queue, store)
-    app.router.lifespan_context = lifespan_for(bot)
+    bot = None
+    if settings:
+        bot = AuralisBot(settings, app.state.queue, store, auralis=auralis)
+    notify = bot.announce_dj if bot and settings.channel_id else None
+    dj = Dj(spotify, app.state.queue, store, notify=notify)
+    if bot:
+        bot.dj = dj
+    app.state.dj = dj
+    app.router.lifespan_context = lifespan_for(bot, dj)
 
 
 def main(argv=None) -> None:
@@ -68,8 +74,12 @@ def main(argv=None) -> None:
     else:
         auralis, store, spotify = build_real()
     app = create_app(auralis, store, spotify)
-    if not args.demo:
-        attach_discord(app, store)
+    if args.demo:  # shown, but never started: nothing watches Spotify
+        from web.dj import Dj
+
+        app.state.dj = Dj(spotify, app.state.queue, store)
+    else:
+        attach_background(app, auralis, store, spotify)
     uvicorn.run(app, host=args.host, port=args.port)
 
 

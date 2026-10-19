@@ -392,3 +392,25 @@ class TestStaticFiles:
         text = text.replace("https://open.spotify.com/track/", "")
         assert "googleapis" not in text and "cdn." not in text
         assert "http://" not in text and "https://" not in text
+
+
+class TestDj:
+    def test_unavailable_without_a_dj(self, world):
+        assert world.client.get("/api/dj").json() == {"available": False}
+        assert world.client.put("/api/dj", json={"enabled": True}).status_code == 404
+
+    def test_turn_on_and_change_the_interval(self, world):
+        from web.dj import Dj
+
+        world.client.app.state.dj = Dj(object(), world.queue, world.store)
+        assert world.client.get("/api/dj").json()["enabled"] is False
+        body = world.client.put("/api/dj", json={"enabled": True, "minutes": 45}).json()
+        assert body["enabled"] is True and body["minutes"] == 45
+        assert world.client.get("/api/dj").json()["minutes"] == 45
+
+    def test_a_silly_interval_is_refused(self, world):
+        from web.dj import Dj
+
+        world.client.app.state.dj = Dj(object(), world.queue, world.store)
+        response = world.client.put("/api/dj", json={"minutes": 3})
+        assert response.status_code == 422 and "minutes" in response.json()["detail"]

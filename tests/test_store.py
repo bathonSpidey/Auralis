@@ -1,3 +1,5 @@
+import time
+
 import pytest
 
 from agent.schemas import PlaylistOutcome, SongOutcome, TrackInfo
@@ -236,3 +238,34 @@ class TestPruning:
             )
         # 120 creations went through; the file holds only the 40 newest
         assert (tmp_path / "big.db").stat().st_size < 600_000
+
+
+class TestSettings:
+    def test_settings_round_trip_and_default(self, tmp_path):
+        store = Store(tmp_path / "s.db")
+        assert store.get_setting("dj.enabled", False) is False
+        store.set_setting("dj.enabled", True)
+        store.set_setting("dj.minutes", 45)
+        store.set_setting("dj.minutes", 20)  # replaces
+        reopened = Store(tmp_path / "s.db")
+        assert reopened.get_setting("dj.enabled") is True
+        assert reopened.get_setting("dj.minutes") == 20
+
+    def test_an_existing_v1_database_is_upgraded_and_keeps_its_history(self, tmp_path):
+        import sqlite3
+
+        path = tmp_path / "old.db"
+        db = sqlite3.connect(path)
+        db.executescript(history._MIGRATIONS[1])
+        db.execute("PRAGMA user_version = 1")
+        db.execute(
+            "INSERT INTO suggestions (created_at, kind, depth, source, name, reason) "
+            "VALUES (?, 'song', 'quick', 'web', 'Old', 'r')",
+            (int(time.time()) - DAY,),
+        )
+        db.commit()
+        db.close()
+        store = Store(path)
+        store.set_setting("dj.enabled", True)
+        assert store.get_setting("dj.enabled") is True
+        assert [h["name"] for h in store.history()] == ["Old"]

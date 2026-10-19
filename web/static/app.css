@@ -219,6 +219,15 @@ a.link:hover { text-decoration: underline; }
 
 /* ── create ── */
 .hero { margin-bottom: 1.8rem; }
+.djbar {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.7rem 1.4rem;
+  padding: 0.8rem 1rem; margin-bottom: 1.2rem; border: 1px solid var(--line); border-radius: 1rem; background: var(--surface);
+}
+.djbar[hidden] { display: none; }
+.djbar strong { color: var(--fg); font-weight: 600; }
+.djrow { display: flex; align-items: center; gap: 0.8rem; min-width: 0; flex-wrap: wrap; }
+.djrow select { width: auto; min-width: 9rem; padding: 0.4rem 0.7rem; font-size: 0.85rem; }
+.djrow .hint { margin: 0; }
 .now { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.6rem; margin-bottom: 1.1rem; }
 .now[hidden] { display: none; }
 .now .chip-now {

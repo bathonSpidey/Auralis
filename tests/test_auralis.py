@@ -34,6 +34,11 @@ class FakeSpotify:
     def active_device(self):
         return object() if self.has_device else None
 
+    now = None
+
+    def now_playing(self):
+        return self.now
+
     def __init__(self, playing=False, has_device=True):
         self.playing = playing
         self.has_device = has_device
@@ -754,3 +759,50 @@ class TestCommittingAPreview:
         real = auralis.song_of_the_moment_suggestion()
         with pytest.raises(AuralisError, match="already"):
             auralis.commit_song(real)
+
+
+class TestNowPlaying:
+    def test_what_is_playing_reaches_the_prompt_context(self, tmp_path):
+        spotify = FakeSpotify()
+        spotify.now = make_song("Drifting", "Someone")
+        auralis, _, _ = make_auralis(tmp_path, spotify=spotify)
+        playing = auralis.build_context()["now_playing"]
+        assert playing["name"] == "Drifting"
+
+    def test_nothing_playing_is_none(self, tmp_path):
+        auralis, _, _ = make_auralis(tmp_path)
+        assert auralis.build_context()["now_playing"] is None
+
+    def test_the_playing_song_is_never_picked_again(self, tmp_path):
+        spotify = FakeSpotify()
+        spotify.now = CATALOGUE[0]
+        auralis, _, advisor = make_auralis(
+            tmp_path, spotify=spotify, song_attempts=(URIS[0:1], URIS[1:2])
+        )
+        outcome = auralis.song_of_the_moment_suggestion()
+        assert "already in" in advisor.submit_results[0]["violations"][0]
+        assert outcome.track.uri == URIS[1]
+
+    def test_losing_the_playback_lookup_does_not_break_a_run(self, tmp_path):
+        spotify = FakeSpotify()
+
+        def broken():
+            raise SpotifyError(500, "boom")
+
+        spotify.now_playing = broken
+        auralis, _, _ = make_auralis(tmp_path, spotify=spotify)
+        assert auralis.build_context()["now_playing"] is None
+
+
+class TestEnqueue:
+    def test_queues_on_the_active_device(self, tmp_path):
+        auralis, spotify, _ = make_auralis(tmp_path)
+        assert auralis.enqueue("spotify:track:x") == "queued"
+        assert spotify.queued == ["spotify:track:x"]
+
+    def test_says_none_when_spotify_is_closed(self, tmp_path):
+        auralis, spotify, _ = make_auralis(
+            tmp_path, spotify=FakeSpotify(has_device=False)
+        )
+        assert auralis.enqueue("spotify:track:x") == "none"
+        assert spotify.queued == []

@@ -204,6 +204,15 @@ class Spotify:
         body = self.client.get("/me/player/currently-playing")
         return bool(body and body.get("is_playing"))
 
+    def now_playing(self) -> Optional[Song]:
+        """The track that is playing right now, or None (paused, an ad, a
+        podcast episode, or nothing)."""
+        body = self.client.get("/me/player/currently-playing")
+        if not body or not body.get("is_playing"):
+            return None
+        item = body.get("item") or {}
+        return _to_song(item) if item.get("type") == "track" else None
+
     def active_device(self) -> Optional[Device]:
         return next((d for d in self.devices() if d.is_active), None)
 

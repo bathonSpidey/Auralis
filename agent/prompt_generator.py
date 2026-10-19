@@ -50,6 +50,7 @@ Rules
 - Explore diverse artists from different countries and regions.
 - Consider the trending charts in the profile only if they fit the occasion.
 - Use the time of day, season and weather when they are given.
+- If now_playing is given, the listener is listening right now: pick something that flows after it in mood and energy, while still being a discovery.
 - Listener feedback, when given, is a soft signal: lean toward what they liked, steer away from what they disliked.
 - {guidance}
 - {untrusted}

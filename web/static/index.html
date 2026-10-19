@@ -46,6 +46,24 @@
           </label>
         </div>
 
+        <div class="djbar" id="djbar" hidden>
+          <label class="switch" for="dj-on">
+            <input type="checkbox" id="dj-on">
+            <span class="track" aria-hidden="true"></span>
+            <span><strong>DJ mode</strong> adds a fresh song to your queue while music is playing</span>
+          </label>
+          <div class="djrow">
+            <label class="sr-only" for="dj-minutes">How often</label>
+            <select id="dj-minutes">
+              <option value="15">every 15 min</option>
+              <option value="30">every 30 min</option>
+              <option value="45">every 45 min</option>
+              <option value="60">every hour</option>
+            </select>
+            <span class="hint" id="dj-hint"></span>
+          </div>
+        </div>
+
         <div class="grid">
           <form class="card" id="playlist-form">
             <h2>Playlist</h2>

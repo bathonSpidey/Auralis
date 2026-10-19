@@ -207,6 +207,43 @@ async function loadNow() {
   try { nowInfo = await api("/api/now"); renderNow(); } catch (_) { /* the strip is optional */ }
 }
 
+/* ── DJ mode ──────────────────────────────────────────────────────────── */
+async function loadDj() {
+  const bar = $("#djbar");
+  try {
+    const dj = await api("/api/dj");
+    if (dj.available === false) { bar.hidden = true; return; }
+    bar.hidden = false;
+    $("#dj-on").checked = dj.enabled;
+    const select = $("#dj-minutes");
+    if (![...select.options].some((o) => Number(o.value) === dj.minutes)) {
+      select.append(h("option", { value: dj.minutes }, `every ${dj.minutes} min`));
+    }
+    select.value = String(dj.minutes);
+    select.disabled = !dj.enabled;
+    $("#dj-hint").textContent = djHint(dj);
+  } catch (_) { bar.hidden = true; }
+}
+
+function djHint(dj) {
+  if (!dj.enabled) return "Off";
+  const parts = [];
+  if (!dj.listening) parts.push("Waiting for music to play");
+  else if (dj.next_at) {
+    const minutes = Math.max(0, Math.round((dj.next_at * 1000 - Date.now()) / 60000));
+    parts.push(minutes <= 1 ? "Next song any moment" : `Next song in about ${minutes} min`);
+  }
+  if (dj.last) parts.push(`Last: ${dj.last.title} · ${dj.last.artist}`);
+  return parts.join("  ·  ");
+}
+
+async function saveDj(change) {
+  try {
+    await api("/api/dj", { method: "PUT", json: change });
+    loadDj();
+  } catch (error) { toast(error.message); loadDj(); }
+}
+
 /* ── composer ─────────────────────────────────────────────────────────── */
 function renderDepth() {
   const group = $("#depth");
@@ -234,6 +271,8 @@ function buildComposer() {
   $("#preview").checked = settings.preview;
   $("#preview").addEventListener("change", (e) => { settings.preview = e.target.checked; saveSettings(); });
   $("#device").addEventListener("change", (e) => { settings.device = e.target.value; saveSettings(); });
+  $("#dj-on").addEventListener("change", (e) => saveDj({ enabled: e.target.checked }));
+  $("#dj-minutes").addEventListener("change", (e) => saveDj({ minutes: Number(e.target.value) }));
   $("#song-web").checked = settings.songWeb;
   $("#song-web").addEventListener("change", (e) => { settings.songWeb = e.target.checked; saveSettings(); });
   $("#playlist-form").addEventListener("submit", (e) => { e.preventDefault(); submitPlaylist(); });
@@ -550,11 +589,13 @@ async function boot() {
   document.querySelectorAll(".tab").forEach((tab) => tab.addEventListener("click", () => showTab(tab.dataset.tab)));
   window.addEventListener("hashchange", () => showTab(location.hash.slice(1)));
   $("#more").addEventListener("click", () => loadHistory(false));
-  window.addEventListener("focus", () => { loadDevices(); refreshStatus(); });
+  window.addEventListener("focus", () => { loadDevices(); refreshStatus(); loadDj(); });
   showTab(location.hash.slice(1) || "create");
   refreshStatus();
   loadDevices();
   loadNow();
+  loadDj();
+  setInterval(loadDj, 60000);
   setInterval(renderNow, 20000);
   setInterval(loadNow, 15 * 60 * 1000);
   loadRecent();

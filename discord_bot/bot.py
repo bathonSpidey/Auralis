@@ -121,26 +121,90 @@ class RateButton(
         await interaction.response.send_message(said, ephemeral=True)
 
 
-def rating_view(suggestion_id: int) -> discord.ui.View:
+class QueueButton(
+    discord.ui.DynamicItem[discord.ui.Button],
+    template=r"auralis:queue:(?P<id>\d+)",
+):
+    """Queue a song that could not be queued when it was made (Spotify was
+    closed). Like the rating buttons, it survives restarts."""
+
+    def __init__(self, suggestion_id: int):
+        super().__init__(
+            discord.ui.Button(
+                label="Queue it",
+                emoji="➕",
+                style=discord.ButtonStyle.primary,
+                custom_id=f"auralis:queue:{suggestion_id}",
+            )
+        )
+        self.suggestion_id = suggestion_id
+
+    @classmethod
+    async def from_custom_id(cls, interaction, item, match):
+        return cls(int(match["id"]))
+
+    async def callback(self, interaction: discord.Interaction):
+        bot = interaction.client
+        if not bot.allowed(interaction):
+            await bot.refuse(interaction)
+            return
+        uris = bot.store.track_uris(self.suggestion_id)
+        outcome = (
+            await asyncio.to_thread(bot.auralis.enqueue, uris[0])
+            if uris and bot.auralis
+            else "none"
+        )
+        await interaction.response.send_message(
+            say.QUEUE_REPLY[outcome], ephemeral=True
+        )
+
+
+class MoreButton(discord.ui.DynamicItem[discord.ui.Button], template=r"auralis:more"):
+    """Another song, picked the same way as `/song`."""
+
+    def __init__(self):
+        super().__init__(
+            discord.ui.Button(
+                label="Another one",
+                emoji="🎲",
+                style=discord.ButtonStyle.secondary,
+                custom_id="auralis:more",
+            )
+        )
+
+    @classmethod
+    async def from_custom_id(cls, interaction, item, match):
+        return cls()
+
+    async def callback(self, interaction: discord.Interaction):
+        await interaction.client.handle_song(interaction, False, False)
+
+
+def song_view(suggestion_id: int, queued: bool) -> discord.ui.View:
     view = discord.ui.View(timeout=None)
     view.add_item(RateButton(suggestion_id, "like"))
     view.add_item(RateButton(suggestion_id, "dislike"))
+    if not queued:
+        view.add_item(QueueButton(suggestion_id))
+    view.add_item(MoreButton())
     return view
 
 
 class AuralisBot(discord.Client):
-    def __init__(self, settings: Settings, queue, store):
+    def __init__(self, settings: Settings, queue, store, auralis=None, dj=None):
         super().__init__(intents=discord.Intents.default())
         self.settings = settings
         self.queue = queue
         self.store = store
+        self.auralis = auralis  # to queue a song from a button
+        self.dj = dj  # set after construction: the DJ announces through this bot
         self.tree = app_commands.CommandTree(self)
         self._digest: Optional[asyncio.Task] = None
         self._register()
 
     # ── lifecycle ───────────────────────────────────────────────────────
     async def setup_hook(self):
-        self.add_dynamic_items(RateButton)
+        self.add_dynamic_items(RateButton, QueueButton, MoreButton)
         guild = discord.Object(id=self.settings.guild_id)
         self.tree.copy_global_to(guild=guild)
         await self.tree.sync(guild=guild)
@@ -193,6 +257,18 @@ class AuralisBot(discord.Client):
         ):
             await self.handle_playlist(interaction, prompt, depth, play)
 
+        @self.tree.command(name="dj", description="Queue a fresh song while I listen")
+        @app_commands.describe(
+            action="Turn it on or off, or see how it is doing",
+            minutes="How often to add a song while music is playing",
+        )
+        async def dj(
+            interaction: discord.Interaction,
+            action: Literal["on", "off", "status"] = "status",
+            minutes: Optional[app_commands.Range[int, 10, 180]] = None,
+        ):
+            await self.handle_dj(interaction, action, minutes)
+
         @self.tree.command(name="history", description="What Auralis made recently")
         async def history(
             interaction: discord.Interaction,
@@ -219,6 +295,20 @@ class AuralisBot(discord.Client):
             device_id=CURRENT_DEVICE if play else None,
         )
 
+    async def handle_dj(self, interaction, action: str, minutes: Optional[int]):
+        if not self.allowed(interaction):
+            return await self.refuse(interaction)
+        if self.dj is None:
+            return await interaction.response.send_message(
+                "DJ mode isn't available here.", ephemeral=True
+            )
+        enabled = {"on": True, "off": False}.get(action)
+        try:
+            status = self.dj.configure(enabled=enabled, minutes=minutes)
+        except ValueError as e:
+            return await interaction.response.send_message(str(e), ephemeral=True)
+        await interaction.response.send_message(embed=say.dj_embed(status))
+
     async def handle_history(self, interaction, count: int):
         if not self.allowed(interaction):
             return await self.refuse(interaction)
@@ -241,22 +331,35 @@ class AuralisBot(discord.Client):
             )
 
         snapshot = await self._wait(job.id, show)
-        await interaction.edit_original_response(
-            content=None, **self._result(kind, snapshot)
-        )
+        await interaction.edit_original_response(**self._result(kind, snapshot))
 
     # ── results ─────────────────────────────────────────────────────────
     @staticmethod
     def _result(kind: str, snapshot: dict) -> dict:
-        """Keyword arguments for sending or editing the finished message."""
+        """Keyword arguments for sending or editing the finished message.
+
+        `content` is a bare Spotify link under the embed: Discord turns it into
+        a Spotify card with a short preview, which an embed's own link does not."""
         if snapshot["status"] != DONE:
             message = snapshot.get("error") or "The run took too long; try again."
-            return {"embed": say.failure_embed(message), "view": None}
+            return {"content": None, "embed": say.failure_embed(message), "view": None}
         outcome = snapshot["result"]["outcome"]
         if kind == "song":
-            view = rating_view(outcome["id"]) if outcome.get("id") else None
-            return {"embed": say.song_embed(outcome), "view": view}
-        return {"embed": say.playlist_embed(outcome), "view": None}
+            view = (
+                song_view(outcome["id"], outcome["playback"] != "none")
+                if outcome.get("id")
+                else None
+            )
+            return {
+                "content": say.track_url(outcome["track"]["uri"]),
+                "embed": say.song_embed(outcome),
+                "view": view,
+            }
+        return {
+            "content": outcome.get("playlist_url"),
+            "embed": say.playlist_embed(outcome),
+            "view": None,
+        }
 
     async def _wait(self, job_id: str, on_change) -> dict:
         """Poll the job until it ends, reporting each change of stage."""
@@ -285,10 +388,7 @@ class AuralisBot(discord.Client):
                 logger.exception("Daily song failed")
 
     async def post_digest(self):
-        await self.wait_until_ready()
-        channel = self.get_channel(
-            self.settings.channel_id
-        ) or await self.fetch_channel(self.settings.channel_id)
+        channel = await self._channel()
         try:
             job = self.queue.submit("song", source=DIGEST_SOURCE, depth="quick")
         except QueueFull as e:
@@ -299,40 +399,70 @@ class AuralisBot(discord.Client):
             return None
 
         snapshot = await self._wait(job.id, ignore)
+        await self.announce(snapshot, "Today's song")
+
+    async def announce(self, snapshot: dict, heading: str):
+        """Post a finished song to the channel, under a bold heading."""
+        channel = await self._channel()
         result = self._result("song", snapshot)
         if snapshot["status"] == DONE:
-            await channel.send("**Today's song**", **_without_none(result))
-        else:
-            await channel.send(**_without_none(result))
+            result["content"] = "\n".join(
+                part for part in (f"**{heading}**", result["content"]) if part
+            )
+        await channel.send(**_without_none(result))
+
+    async def announce_dj(self, snapshot: dict):
+        """The DJ queued a song (or tried to): tell the channel."""
+        queued = (
+            snapshot["status"] == DONE
+            and snapshot["result"]["outcome"]["playback"] == "queued"
+        )
+        await self.announce(
+            snapshot, "Added to your queue" if queued else "DJ pick (not queued)"
+        )
+
+    async def _channel(self):
+        await self.wait_until_ready()
+        channel_id = self.settings.channel_id
+        return self.get_channel(channel_id) or await self.fetch_channel(channel_id)
 
 
 def _without_none(kwargs: dict) -> dict:
     return {k: v for k, v in kwargs.items() if v is not None}
 
 
-def lifespan_for(bot: AuralisBot):
-    """A FastAPI lifespan that runs the bot beside the web server. A bad token
-    or no network is logged; it never takes the web page down."""
+async def serve(bot: AuralisBot) -> None:
+    """Run the bot until it is closed. A bad token or no network is logged; it
+    never takes the web page down."""
+    try:
+        await bot.start(bot.settings.token)
+    except discord.LoginFailure:
+        logger.error("Discord login failed: check DISCORD_BOT_TOKEN")
+    except asyncio.CancelledError:
+        raise
+    except Exception:
+        logger.exception("The Discord bot stopped")
 
-    async def serve():
-        try:
-            await bot.start(bot.settings.token)
-        except discord.LoginFailure:
-            logger.error("Discord login failed: check DISCORD_BOT_TOKEN")
-        except asyncio.CancelledError:
-            raise
-        except Exception:
-            logger.exception("The Discord bot stopped")
+
+def lifespan_for(bot: Optional[AuralisBot] = None, dj=None):
+    """A FastAPI lifespan that runs the bot and the DJ beside the web server."""
 
     @asynccontextmanager
     async def lifespan(app):
-        task = asyncio.create_task(serve())
+        tasks = []
+        if bot:
+            tasks.append(asyncio.create_task(serve(bot)))
+        if dj:
+            tasks.append(asyncio.create_task(dj.run()))
         try:
             yield
         finally:
-            await bot.close()
-            task.cancel()
-            with contextlib.suppress(asyncio.CancelledError, Exception):
-                await task
+            if bot:
+                await bot.close()
+            for task in tasks:
+                task.cancel()
+            for task in tasks:
+                with contextlib.suppress(asyncio.CancelledError, Exception):
+                    await task
 
     return lifespan

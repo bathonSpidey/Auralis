@@ -63,10 +63,17 @@ class Listening:
     liked: List[Song] = field(default_factory=list)  # all of them
     liked_sample: List[Song] = field(default_factory=list)  # for the prompt
     playlists: List[Playlist] = field(default_factory=list)
+    now_playing: Optional[Song] = None  # what is playing at this moment
 
     def familiar(self) -> List[Song]:
+        playing = [self.now_playing] if self.now_playing else []
         return (
-            self.recent + self.top_short + self.top_medium + self.top_long + self.liked
+            playing
+            + self.recent
+            + self.top_short
+            + self.top_medium
+            + self.top_long
+            + self.liked
         )
 
 
@@ -383,14 +390,19 @@ class Auralis:
         try:
             device_id = self._resolve_device(device_id)
             if device_id is None:
-                if self.spotify.active_device() is None:
-                    return "none"
-                self.spotify.queue_track(track["uri"])
-                return "queued"
+                return self.enqueue(track["uri"])
             self.spotify.play_track(track["uri"], device_id=device_id)
             return "playing"
         except NoDeviceError:
             return "none"
+
+    def enqueue(self, uri: str) -> str:
+        """Add a track to the queue of the device that is active; 'none' when
+        Spotify is not open anywhere."""
+        if self.spotify.active_device() is None:
+            return "none"
+        self.spotify.queue_track(uri)
+        return "queued"
 
     def _resolve_device(self, device_id: Optional[str]) -> Optional[str]:
         """CURRENT_DEVICE becomes the playing or last-used device; if there is
@@ -415,7 +427,16 @@ class Auralis:
                 liked, min(LIKED_SAMPLE, len(liked))
             ),  # variety, not security  # nosec B311
             playlists=self.spotify.user_playlists(),
+            now_playing=self._now_playing(),
         )
+
+    def _now_playing(self) -> Optional[Song]:
+        """What is playing lets a pick flow with it; losing it costs nothing."""
+        try:
+            return self.spotify.now_playing()
+        except Exception as e:
+            logger.debug("Could not read what is playing (%s)", e)
+            return None
 
     def _liked_songs(self) -> List[Song]:
         """Liked songs enrich the profile but are not essential, so a failure
@@ -488,6 +509,11 @@ class Auralis:
             ],
             "my_recent_genre_distribution": self._get_recent_genre_distribution(
                 listening.recent[:10] + listening.top_medium[:10]
+            ),
+            "now_playing": (
+                listening.now_playing.model_dump(exclude=exclude)
+                if listening.now_playing
+                else None
             ),
             "trending_charts": charts,
             "my_current_weather": weather.model_dump() if weather else None,

@@ -9,6 +9,7 @@ a deploy never touches it).
 Old history is pruned so the file stays small; ratings are never pruned.
 """
 
+import json
 import os
 import sqlite3
 import time
@@ -24,7 +25,6 @@ MAX_SUGGESTIONS = 500
 _VACUUM_THRESHOLD_BYTES = 512 * 1024
 LIKE, DISLIKE = "like", "dislike"
 
-_SCHEMA_VERSION = 1
 _SCHEMA = """
 CREATE TABLE suggestions (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -61,6 +61,13 @@ CREATE INDEX suggestions_created ON suggestions (created_at DESC);
 """
 
 
+_MIGRATIONS = {
+    1: _SCHEMA,
+    2: "CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);",
+}
+_SCHEMA_VERSION = max(_MIGRATIONS)
+
+
 def default_db_path() -> Path:
     data_dir = os.getenv("AURALIS_DATA_DIR") or Path.home() / "auralis-data"
     return Path(data_dir) / "auralis.db"
@@ -76,9 +83,10 @@ class Store:
         self.clock = clock
         self.path.parent.mkdir(parents=True, exist_ok=True)
         with self._connect() as db:
-            if db.execute("PRAGMA user_version").fetchone()[0] < _SCHEMA_VERSION:
-                db.executescript(_SCHEMA)
-                db.execute(f"PRAGMA user_version = {_SCHEMA_VERSION}")
+            version = db.execute("PRAGMA user_version").fetchone()[0]
+            for step in range(version + 1, _SCHEMA_VERSION + 1):
+                db.executescript(_MIGRATIONS[step])
+                db.execute(f"PRAGMA user_version = {step}")
         self.prune()
 
     @contextmanager
@@ -262,6 +270,22 @@ class Store:
             kind: [(row["title"], row["artist"]) for row in self.ratings(kind)[:limit]]
             for kind in (LIKE, DISLIKE)
         }
+
+    # ── settings ────────────────────────────────────────────────────────
+    def get_setting(self, key: str, default=None):
+        with self._connect() as db:
+            row = db.execute(
+                "SELECT value FROM settings WHERE key = ?", (key,)
+            ).fetchone()
+        return json.loads(row["value"]) if row else default
+
+    def set_setting(self, key: str, value) -> None:
+        with self._connect() as db:
+            db.execute(
+                "INSERT INTO settings (key, value) VALUES (?, ?) "
+                "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+                (key, json.dumps(value)),
+            )
 
     # ── housekeeping ────────────────────────────────────────────────────
     def prune(self) -> int:

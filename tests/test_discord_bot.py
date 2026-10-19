@@ -75,10 +75,10 @@ class FakeStore:
         self.rated.append((suggestion_id, uri, rating))
 
 
-def make_bot(runner, store=None, **settings):
+def make_bot(runner, store=None, auralis=None, dj=None, **settings):
     queue = JobQueue(runner, autostart=False)
     config = Settings(token="t", guild_id=GUILD, user_id=OWNER, **settings)
-    return AuralisBot(config, queue, store or FakeStore()), queue
+    return AuralisBot(config, queue, store or FakeStore(), auralis, dj), queue
 
 
 def drive(bot, queue, coro):
@@ -288,3 +288,161 @@ class TestFormat:
 
     def test_playback_is_told_in_the_footer(self):
         assert say.song_embed(SONG).footer.text == "Not playing; find it in Spotify"
+
+
+class TestPolish:
+    def test_a_song_carries_a_bare_spotify_link_for_the_card(self):
+        bot, queue = make_bot(lambda job, progress: {"kind": "song", "outcome": SONG})
+        interaction = FakeInteraction(bot=bot)
+        drive(bot, queue, bot.handle_song(interaction, False, False))
+        assert interaction.edits[-1]["content"] == "https://open.spotify.com/track/abc"
+
+    def test_a_playlist_carries_its_link_and_a_failure_clears_the_text(self):
+        result = bot_module.AuralisBot._result
+        done = {"status": "done", "result": {"outcome": PLAYLIST}}
+        assert result("playlist", done)["content"] == PLAYLIST["playlist_url"]
+        failed = {"status": "failed", "error": "no"}
+        assert result("song", failed)["content"] is None
+
+    def test_a_song_not_yet_queued_offers_to_queue_it(self):
+        def labels(playback):
+            view = bot_module.song_view(7, playback)
+            return [child.item.label for child in view.children]
+
+        assert labels(False) == ["Like", "Less like this", "Queue it", "Another one"]
+        assert labels(True) == ["Like", "Less like this", "Another one"]
+
+    def test_queue_button_queues_for_the_owner_only(self):
+        queued = []
+
+        class Auralis:
+            def enqueue(self, uri):
+                queued.append(uri)
+                return "queued"
+
+        bot, _ = make_bot(lambda job, progress: {}, auralis=Auralis())
+        button = bot_module.QueueButton(7)
+        owner = FakeInteraction(bot=bot)
+        asyncio.run(button.callback(owner))
+        assert queued == ["spotify:track:abc"]
+        assert owner.sent[0]["content"] == "Added to your queue."
+        asyncio.run(button.callback(FakeInteraction(user=999, bot=bot)))
+        assert queued == ["spotify:track:abc"]
+
+    def test_queue_button_explains_when_spotify_is_closed(self):
+        class Auralis:
+            def enqueue(self, uri):
+                return "none"
+
+        bot, _ = make_bot(lambda job, progress: {}, auralis=Auralis())
+        owner = FakeInteraction(bot=bot)
+        asyncio.run(bot_module.QueueButton(7).callback(owner))
+        assert "isn't open" in owner.sent[0]["content"]
+
+    def test_another_one_starts_a_new_song(self):
+        seen = []
+
+        def runner(job, progress):
+            seen.append(job)
+            return {"kind": "song", "outcome": SONG}
+
+        bot, queue = make_bot(runner)
+        interaction = FakeInteraction(bot=bot)
+        drive(bot, queue, bot_module.MoreButton().callback(interaction))
+        assert seen[0].kind == "song" and seen[0].source == "discord"
+
+    def test_button_ids_survive_a_restart(self):
+        template = bot_module.QueueButton.__discord_ui_compiled_template__
+        assert template.fullmatch("auralis:queue:42")["id"] == "42"
+        assert bot_module.MoreButton.__discord_ui_compiled_template__.fullmatch(
+            "auralis:more"
+        )
+
+
+class FakeDj:
+    def __init__(self):
+        self.calls = []
+
+    def configure(self, enabled=None, minutes=None):
+        self.calls.append((enabled, minutes))
+        if minutes == 1:
+            raise ValueError("Choose between 10 and 180 minutes")
+        return {
+            "enabled": bool(enabled),
+            "minutes": minutes or 30,
+            "listening": True,
+            "next_at": 2_000_000_000,
+            "added_today": 2,
+            "max_per_day": 12,
+            "last": {
+                "title": "A",
+                "artist": "B",
+                "at": 1_999_999_000,
+                "playback": "queued",
+            },
+        }
+
+
+class TestDjCommand:
+    def test_turn_on_with_an_interval(self):
+        dj = FakeDj()
+        bot, _ = make_bot(lambda job, progress: {}, dj=dj)
+        interaction = FakeInteraction(bot=bot)
+        asyncio.run(bot.handle_dj(interaction, "on", 45))
+        assert dj.calls == [(True, 45)]
+        embed = interaction.sent[0]["embed"]
+        assert embed.title == "DJ mode · On" and "45 minutes" in embed.description
+
+    def test_status_changes_nothing(self):
+        dj = FakeDj()
+        bot, _ = make_bot(lambda job, progress: {}, dj=dj)
+        asyncio.run(bot.handle_dj(FakeInteraction(bot=bot), "status", None))
+        assert dj.calls == [(None, None)]
+
+    def test_a_bad_interval_is_explained_privately(self):
+        bot, _ = make_bot(lambda job, progress: {}, dj=FakeDj())
+        interaction = FakeInteraction(bot=bot)
+        asyncio.run(bot.handle_dj(interaction, "on", 1))
+        assert interaction.sent[0]["ephemeral"] is True
+
+    def test_only_the_owner_and_only_when_there_is_a_dj(self):
+        dj = FakeDj()
+        bot, _ = make_bot(lambda job, progress: {}, dj=dj)
+        asyncio.run(bot.handle_dj(FakeInteraction(user=999, bot=bot), "on", None))
+        assert dj.calls == []
+        bare, _ = make_bot(lambda job, progress: {})
+        interaction = FakeInteraction(bot=bare)
+        asyncio.run(bare.handle_dj(interaction, "on", None))
+        assert "isn't available" in interaction.sent[0]["content"]
+
+
+class TestAnnouncements:
+    def make(self, playback):
+        sent = []
+
+        class Channel:
+            async def send(self, **kwargs):
+                sent.append(kwargs)
+
+        bot, _ = make_bot(lambda job, progress: {}, channel_id=CHANNEL)
+
+        async def channel():
+            return Channel()
+
+        bot._channel = channel
+        outcome = {**SONG, "playback": playback}
+        snapshot = {"status": "done", "result": {"outcome": outcome}}
+        return bot, sent, snapshot
+
+    def test_a_queued_dj_song_is_announced_with_the_link(self):
+        bot, sent, snapshot = self.make("queued")
+        asyncio.run(bot.announce_dj(snapshot))
+        content = sent[0]["content"]
+        assert content.startswith("**Added to your queue**")
+        assert content.endswith("https://open.spotify.com/track/abc")
+        assert sent[0]["view"] is not None
+
+    def test_a_song_that_could_not_be_queued_says_so(self):
+        bot, sent, snapshot = self.make("none")
+        asyncio.run(bot.announce_dj(snapshot))
+        assert sent[0]["content"].startswith("**DJ pick (not queued)**")

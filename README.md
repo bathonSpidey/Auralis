@@ -9,7 +9,8 @@ It is made to run on a small always-on machine (a Raspberry Pi) and to stay out 
 ## What it does
 
 - **Playlist.** Describe a moment ("a one-hour focus session, instrumental but not boring") and get a playlist in your Spotify. Mention a length and it fits.
-- **Song of the moment.** One new song for right now. A daily song can be posted to Discord.
+- **Song of the moment.** One new song for right now. With Spotify open it goes straight to your queue; a daily song can be posted to Discord.
+- **DJ mode.** Off by default. While music is playing, a fresh song that flows after what you are hearing is added to your queue every 30 minutes (10 to 180, your choice), and Discord is told. Pausing for ten minutes ends the session, and a daily cap keeps it from running away. Switch it on from the page or with `/dj`.
 - **Knows your taste.** It reads your recent plays, top tracks, playlists and liked songs, and prefers discoveries over what you already know.
 - **Knows the moment.** Local time of day, season and current weather go into every request.
 - **Research depth.** _Quick_ uses your taste only, _Auto_ searches the web when it needs to, _Deep_ researches properly. Pick it per request.
@@ -43,9 +44,10 @@ The rules are enforced in code, not in the prompt. The only way to create a play
 | :----------------------------------------------- | :----------------------------------------------------------- |
 | `/song [web] [play]`                             | One new song. `web` also searches the web, `play` plays it.  |
 | `/playlist <prompt> [depth] [play]`              | Builds and creates a playlist.                               |
+| `/dj [on/off/status] [minutes]`                  | DJ mode: queue a fresh song every so often while you listen. |
 | `/history [count]`                               | The most recent suggestions.                                 |
 
-A song comes with **Like** and **Less like this** buttons. If `DISCORD_CHANNEL_ID` is set, a song is posted there every day at `AURALIS_DIGEST_TIME` (default 08:30, local time; `off` disables it).
+A song comes with a Spotify card (a short preview) and the buttons **Like**, **Less like this**, **Queue it** (when Spotify was closed) and **Another one**. If `DISCORD_CHANNEL_ID` is set, a song is posted there every day at `AURALIS_DIGEST_TIME` (default 08:30, local time; `off` disables it).
 
 ## Setup
 
