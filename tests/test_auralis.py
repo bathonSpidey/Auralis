@@ -806,3 +806,27 @@ class TestEnqueue:
         )
         assert auralis.enqueue("spotify:track:x") == "none"
         assert spotify.queued == []
+
+
+class TestPlaybackFailureKeepsTheChoice:
+    def test_a_queue_error_still_records_the_song(self, tmp_path):
+        spotify = FakeSpotify()
+
+        def refuse(uri, device_id=None):
+            raise SpotifyError(404, "Player command failed: No active device found")
+
+        spotify.queue_track = refuse
+        auralis, _, _ = make_auralis(tmp_path, spotify=spotify)
+        outcome = auralis.song_of_the_moment_suggestion()
+        assert outcome.playback == "none" and outcome.track.title == "T1"
+
+    def test_a_play_error_still_creates_the_playlist(self, tmp_path):
+        spotify = FakeSpotify()
+
+        def refuse(uri, device_id=None):
+            raise SpotifyError(403, "Restriction violated")
+
+        spotify.play_playlist = refuse
+        auralis, _, _ = make_auralis(tmp_path, spotify=spotify)
+        outcome = auralis.playlist_generator("upbeat", device_id="kitchen")
+        assert outcome.playback == "none" and outcome.playlist_url

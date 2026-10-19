@@ -19,6 +19,28 @@ class TestRequest:
         assert client.get("/me") == {"id": "u"}
         assert session.calls[0]["headers"] == {"Authorization": "Bearer token"}
 
+    def test_a_successful_reply_that_is_not_json_is_none(self):
+        class Plain(FakeResponse):
+            content = b"OK"
+
+            def json(self):
+                raise ValueError("Expecting value: line 1 column 1 (char 0)")
+
+        client, _, _ = make_client({("POST", "/me/player/queue"): Plain(200)})
+        assert client.post("/me/player/queue", params={"uri": "x"}) is None
+
+    def test_a_failure_that_is_not_json_is_still_an_error(self):
+        class Plain(FakeResponse):
+            content = b"Bad gateway"
+            text = "Bad gateway"
+
+            def json(self):
+                raise ValueError("no json")
+
+        client, _, _ = make_client({("POST", "/x"): Plain(400)})
+        with pytest.raises(SpotifyError):
+            client.post("/x")
+
     def test_empty_response_is_none(self):
         client, _, _ = make_client({("PUT", "/x"): FakeResponse(204)})
         assert client.put("/x") is None

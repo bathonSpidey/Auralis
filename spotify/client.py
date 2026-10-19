@@ -69,7 +69,12 @@ class SpotifyClient:
                 raise self._error(response)
             if status == 204 or not response.content:
                 return None
-            return response.json()
+            try:
+                return response.json()
+            except ValueError:
+                # Some commands (like adding to the queue) answer 200 with a
+                # body that is not JSON; the call itself succeeded.
+                return None
 
     def get(self, path: str, params=None):
         return self.request("GET", path, params=params)

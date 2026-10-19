@@ -383,6 +383,9 @@ class Auralis:
             return True
         except NoDeviceError:
             return False
+        except SpotifyError as e:  # the playlist exists; only playing it failed
+            logger.warning("Could not start the playlist (%s)", e)
+            return False
 
     def _play_song(self, track: dict, device_id: Optional[str]) -> str:
         """A chosen device plays the song. Otherwise, if Spotify is open on
@@ -395,6 +398,9 @@ class Auralis:
             self.spotify.play_track(track["uri"], device_id=device_id)
             return "playing"
         except NoDeviceError:
+            return "none"
+        except SpotifyError as e:  # the song is still chosen and recorded
+            logger.warning("Could not play or queue the song (%s)", e)
             return "none"
 
     def enqueue(self, uri: str) -> str:
