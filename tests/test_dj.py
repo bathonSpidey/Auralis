@@ -108,7 +108,7 @@ class TestSessions:
         assert snapshot["status"] == "done"
         job = world.runs[0]
         assert (job.kind, job.source, job.depth) == ("song", "dj", "quick")
-        assert job.device_id is None  # queued, never played over you
+        assert job.device_id == "queue-only"  # joins a queue, never starts music
 
     def test_then_one_song_every_interval(self, world):
         world.dj.configure(enabled=True, minutes=20)

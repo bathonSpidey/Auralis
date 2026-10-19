@@ -20,7 +20,7 @@ from typing import Literal, Optional
 import discord
 from discord import app_commands
 
-from agent.auralis import CURRENT_DEVICE
+from agent.auralis import QUEUE_ONLY
 from discord_bot import format as say
 from web.jobs import DONE, FAILED, QueueFull
 
@@ -177,7 +177,7 @@ class MoreButton(discord.ui.DynamicItem[discord.ui.Button], template=r"auralis:m
         return cls()
 
     async def callback(self, interaction: discord.Interaction):
-        await interaction.client.handle_song(interaction, False, False)
+        await interaction.client.handle_song(interaction, False)
 
 
 def song_view(suggestion_id: int, queued: bool) -> discord.ui.View:
@@ -235,27 +235,21 @@ class AuralisBot(discord.Client):
     # ── commands ────────────────────────────────────────────────────────
     def _register(self):
         @self.tree.command(name="song", description="One new song for right now")
-        @app_commands.describe(
-            web="Look on the web too (slower)", play="Play it on my current device"
-        )
-        async def song(
-            interaction: discord.Interaction, web: bool = False, play: bool = False
-        ):
-            await self.handle_song(interaction, web, play)
+        @app_commands.describe(web="Look on the web too (slower)")
+        async def song(interaction: discord.Interaction, web: bool = False):
+            await self.handle_song(interaction, web)
 
         @self.tree.command(name="playlist", description="Build a playlist")
         @app_commands.describe(
             prompt="The mood, activity or moment",
             depth="How much to research",
-            play="Play it on my current device",
         )
         async def playlist(
             interaction: discord.Interaction,
             prompt: app_commands.Range[str, 3, 600],
             depth: Literal["quick", "auto", "deep"] = "auto",
-            play: bool = False,
         ):
-            await self.handle_playlist(interaction, prompt, depth, play)
+            await self.handle_playlist(interaction, prompt, depth)
 
         @self.tree.command(name="dj", description="Queue a fresh song while I listen")
         @app_commands.describe(
@@ -276,23 +270,21 @@ class AuralisBot(discord.Client):
         ):
             await self.handle_history(interaction, count)
 
-    async def handle_song(self, interaction, web: bool, play: bool):
+    async def handle_song(self, interaction, web: bool):
         await self._run(
             interaction,
             "Finding your song",
             "song",
             depth="auto" if web else "quick",
-            device_id=CURRENT_DEVICE if play else None,
         )
 
-    async def handle_playlist(self, interaction, prompt: str, depth: str, play: bool):
+    async def handle_playlist(self, interaction, prompt: str, depth: str):
         await self._run(
             interaction,
             f"Building a playlist for “{prompt[:120]}”",
             "playlist",
             prompt=prompt,
             depth=depth,
-            device_id=CURRENT_DEVICE if play else None,
         )
 
     async def handle_dj(self, interaction, action: str, minutes: Optional[int]):
@@ -390,7 +382,9 @@ class AuralisBot(discord.Client):
     async def post_digest(self):
         channel = await self._channel()
         try:
-            job = self.queue.submit("song", source=DIGEST_SOURCE, depth="quick")
+            job = self.queue.submit(
+                "song", source=DIGEST_SOURCE, depth="quick", device_id=QUEUE_ONLY
+            )
         except QueueFull as e:
             await channel.send(embed=say.failure_embed(f"Today's song: {e}"))
             return

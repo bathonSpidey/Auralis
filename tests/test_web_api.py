@@ -557,3 +557,14 @@ class TestHomeEndpoints:
         world.client.app.state.dj = FakeDj()
         response = world.client.post("/api/dj/now", json={"context": {"a": [1]}})
         assert response.status_code == 422 and calls == []
+
+
+class TestPageHasNoDeviceChoice:
+    def test_the_dropdown_is_gone_and_requests_send_no_device(self):
+        from pathlib import Path
+
+        static = Path(__file__).resolve().parent.parent / "web" / "static"
+        page = (static / "index.html").read_text(encoding="utf-8")
+        script = (static / "app.js").read_text(encoding="utf-8")
+        assert 'id="device"' not in page
+        assert "device_id" not in script and "loadDevices" not in script

@@ -16,7 +16,7 @@ It is made to run on a small always-on machine (a Raspberry Pi) and to stay out 
 - **Research depth.** _Quick_ uses your taste only, _Auto_ searches the web when it needs to, _Deep_ researches properly. Pick it per request.
 - **Memory.** Everything it makes is kept in a history. Songs from the last two creations never repeat back to back; older ones may come back.
 - **Likes and dislikes.** Rate any song. A like leans toward that sound, a dislike steers away from songs like it (never a ban), and unrated songs are neutral. Change or clear a rating any time.
-- **Playback.** It plays only where you say: a chosen device, or "where I'm listening" (the playing device, else the last one Spotify remembers). Choose nothing and it just creates the playlist.
+- **Playback picks the device itself.** If Spotify is open on any device, a song joins its queue and never cuts in on what is playing. If Spotify is off, music starts on your default speaker (`AURALIS_DEFAULT_DEVICE`, matched by name, e.g. an Echo in the office); with no default, or when that speaker is offline, it only saves the song or playlist. A playlist never interrupts music that is playing. The daily song and the DJ only ever join a queue and never start music.
 
 ## How it works
 
@@ -42,8 +42,8 @@ The rules are enforced in code, not in the prompt. The only way to create a play
 
 | Command                                          | What it does                                                 |
 | :----------------------------------------------- | :----------------------------------------------------------- |
-| `/song [web] [play]`                             | One new song. `web` also searches the web, `play` starts it if nothing is playing (otherwise it is queued). |
-| `/playlist <prompt> [depth] [play]`              | Builds and creates a playlist.                               |
+| `/song [web]`                                    | One new song, queued if Spotify is open, else played on the default speaker. `web` also searches the web. |
+| `/playlist <prompt> [depth]`                     | Builds and creates a playlist.                               |
 | `/dj [on/off/status] [minutes]`                  | DJ mode: queue a fresh song every so often while you listen. |
 | `/history [count]`                               | The most recent suggestions.                                 |
 
@@ -69,6 +69,7 @@ pip install -r requirements.txt
 
    WEATHER=<OpenWeather One Call 3.0 key>   # optional
    AURALIS_CITY=<city>                      # optional; default is guessed from your public IP
+   AURALIS_DEFAULT_DEVICE=<speaker name>    # optional; where music starts when Spotify is off
 
    DISCORD_BOT_TOKEN=<bot token>            # optional: all of these four turn the bot on
    DISCORD_GUILD_ID=<server id>

@@ -143,7 +143,7 @@ class TestAccess:
     def test_a_stranger_cannot_start_a_run(self):
         bot, queue = make_bot(lambda job, progress: {})
         stranger = FakeInteraction(user=999)
-        asyncio.run(bot.handle_song(stranger, False, False))
+        asyncio.run(bot.handle_song(stranger, False))
         assert queue.recent() == []
         assert "only answers its owner" in stranger.sent[0]["content"]
 
@@ -165,10 +165,10 @@ class TestCommands:
 
         bot, queue = make_bot(runner)
         interaction = FakeInteraction(bot=bot)
-        drive(bot, queue, bot.handle_song(interaction, web=False, play=True))
+        drive(bot, queue, bot.handle_song(interaction, web=False))
         job = seen[0]
         assert (job.kind, job.source, job.depth) == ("song", "discord", "quick")
-        assert job.device_id == "current" and job.preview is False
+        assert job.device_id is None and job.preview is False
         final = interaction.edits[-1]
         assert final["embed"].title == "Slow Burn · Someone"
         assert final["view"] is not None  # like / dislike buttons
@@ -181,7 +181,7 @@ class TestCommands:
             return {"kind": "song", "outcome": SONG}
 
         bot, queue = make_bot(runner)
-        drive(bot, queue, bot.handle_song(FakeInteraction(bot=bot), True, False))
+        drive(bot, queue, bot.handle_song(FakeInteraction(bot=bot), True))
         assert seen[0].depth == "auto" and seen[0].device_id is None
 
     def test_playlist_is_created_for_real_with_the_prompt_and_depth(self):
@@ -193,9 +193,7 @@ class TestCommands:
 
         bot, queue = make_bot(runner)
         interaction = FakeInteraction(bot=bot)
-        drive(
-            bot, queue, bot.handle_playlist(interaction, "rainy focus", "deep", False)
-        )
+        drive(bot, queue, bot.handle_playlist(interaction, "rainy focus", "deep"))
         assert (seen[0].prompt, seen[0].depth) == ("rainy focus", "deep")
         assert seen[0].preview is False
         embed = interaction.edits[-1]["embed"]
@@ -208,7 +206,7 @@ class TestCommands:
 
         bot, queue = make_bot(runner)
         interaction = FakeInteraction(bot=bot)
-        drive(bot, queue, bot.handle_song(interaction, False, False))
+        drive(bot, queue, bot.handle_song(interaction, False))
         assert interaction.edits[-1]["embed"].description == "Spotify said no"
 
     def test_progress_is_shown_while_working(self):
@@ -218,7 +216,7 @@ class TestCommands:
 
         bot, queue = make_bot(runner)
         interaction = FakeInteraction(bot=bot)
-        drive(bot, queue, bot.handle_song(interaction, False, False))
+        drive(bot, queue, bot.handle_song(interaction, False))
         assert interaction.deferred
         assert "Finding your song" in interaction.edits[0]["content"]
 
@@ -227,7 +225,7 @@ class TestCommands:
         for _ in range(queue.max_queued):
             queue.submit("song")
         interaction = FakeInteraction(bot=bot)
-        asyncio.run(bot.handle_song(interaction, False, False))
+        asyncio.run(bot.handle_song(interaction, False))
         assert "queue is full" in interaction.edits[-1]["embed"].description
 
     def test_history_lists_recent_suggestions(self):
@@ -294,7 +292,7 @@ class TestPolish:
     def test_a_song_carries_a_bare_spotify_link_for_the_card(self):
         bot, queue = make_bot(lambda job, progress: {"kind": "song", "outcome": SONG})
         interaction = FakeInteraction(bot=bot)
-        drive(bot, queue, bot.handle_song(interaction, False, False))
+        drive(bot, queue, bot.handle_song(interaction, False))
         assert interaction.edits[-1]["content"] == "https://open.spotify.com/track/abc"
 
     def test_a_playlist_carries_its_link_and_a_failure_clears_the_text(self):
@@ -446,3 +444,27 @@ class TestAnnouncements:
         bot, sent, snapshot = self.make("none")
         asyncio.run(bot.announce_dj(snapshot))
         assert sent[0]["content"].startswith("**DJ pick (not queued)**")
+
+
+class TestDigestNeverStartsMusic:
+    def test_the_daily_song_is_queue_only(self):
+        seen = []
+
+        def runner(job, progress):
+            seen.append(job)
+            return {"kind": "song", "outcome": SONG}
+
+        bot, queue = make_bot(runner, channel_id=CHANNEL)
+        sent = []
+
+        class Channel:
+            async def send(self, **kwargs):
+                sent.append(kwargs)
+
+        async def channel():
+            return Channel()
+
+        bot._channel = channel
+        drive(bot, queue, bot.post_digest())
+        assert seen[0].source == "digest" and seen[0].device_id == "queue-only"
+        assert sent and sent[0]["content"].startswith("**Today's song**")

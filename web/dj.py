@@ -20,6 +20,7 @@ import time
 from datetime import date
 from typing import Awaitable, Callable, Optional
 
+from agent.auralis import QUEUE_ONLY
 from web.jobs import DONE, FAILED, QueueFull
 
 logger = logging.getLogger(__name__)
@@ -197,7 +198,13 @@ class Dj:
 
     async def _add_song(self, hint: str = "", source: str = SOURCE) -> Optional[dict]:
         try:
-            job = self.queue.submit("song", source=source, depth="quick", prompt=hint)
+            job = self.queue.submit(
+                "song",
+                source=source,
+                depth="quick",
+                prompt=hint,
+                device_id=QUEUE_ONLY,  # the DJ never starts music on its own
+            )
         except QueueFull:
             return None  # try again next minute
         deadline = time.monotonic() + MAX_WAIT_SECONDS

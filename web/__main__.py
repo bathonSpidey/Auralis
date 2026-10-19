@@ -33,7 +33,14 @@ def build_real():
 
         weather = WeatherApiConnector(os.getenv("WEATHER"), os.getenv("AURALIS_CITY"))
     return (
-        Auralis(spotify, advisor, scraper, store=store, weather=weather),
+        Auralis(
+            spotify,
+            advisor,
+            scraper,
+            store=store,
+            weather=weather,
+            default_device=os.getenv("AURALIS_DEFAULT_DEVICE"),
+        ),
         store,
         spotify,
     )

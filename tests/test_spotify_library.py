@@ -321,3 +321,46 @@ class TestNowPlaying:
         ):
             spotify, _ = make_spotify(routes)
             assert spotify.now_playing() is None
+
+
+class TestFindDevice:
+    def devices(self):
+        return {
+            ("GET", "/me/player/devices"): ok(
+                {
+                    "devices": [
+                        {
+                            "id": "a",
+                            "is_active": False,
+                            "name": "Kitchen",
+                            "type": "Speaker",
+                        },
+                        {
+                            "id": "b",
+                            "is_active": False,
+                            "name": "KazukiBTOffice",
+                            "type": "Speaker",
+                        },
+                        {
+                            "id": "c",
+                            "is_active": False,
+                            "name": "Office",
+                            "type": "Speaker",
+                        },
+                    ]
+                }
+            )
+        }
+
+    def test_exact_name_wins_ignoring_case(self):
+        spotify, _ = make_spotify(self.devices())
+        assert spotify.find_device("office").id == "c"
+
+    def test_part_of_a_name_matches(self):
+        spotify, _ = make_spotify(self.devices())
+        assert spotify.find_device("BTOffice").id == "b"
+
+    def test_offline_or_blank_is_none(self):
+        spotify, _ = make_spotify(self.devices())
+        assert spotify.find_device("garage") is None
+        assert spotify.find_device("  ") is None

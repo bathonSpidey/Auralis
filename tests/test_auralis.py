@@ -875,3 +875,77 @@ class TestSongNeverInterrupts:
         preview = auralis.song_of_the_moment_suggestion(dry_run=True)
         result = auralis.commit_song(preview, device_id="kitchen")
         assert result.playback == "queued" and spotify.played == []
+
+
+class Device:
+    def __init__(self, id, name):
+        self.id, self.name = id, name
+
+
+class TestDefaultDevice:
+    """Spotify off: start on the default speaker. Spotify open: join its queue."""
+
+    def make(self, tmp_path, *, active, playing=False, online=("Office",)):
+        spotify = FakeSpotify(playing=playing, has_device=active)
+        spotify.active_device = lambda: Device("pc", "PC") if active else None
+        spotify.find_device = lambda name: next(
+            (Device(f"id-{d}", d) for d in online if name.lower() in d.lower()), None
+        )
+        auralis, _, _ = make_auralis(tmp_path, spotify=spotify)
+        auralis.default_device = "office"
+        return auralis, spotify
+
+    def test_a_song_starts_on_the_default_device_when_spotify_is_off(self, tmp_path):
+        auralis, spotify = self.make(tmp_path, active=False)
+        outcome = auralis.song_of_the_moment_suggestion()
+        assert outcome.playback == "playing"
+        assert spotify.played == [("track", URIS[0], "id-Office")]
+        assert spotify.queued == []
+
+    def test_a_song_is_queued_when_spotify_is_open_even_if_paused(self, tmp_path):
+        auralis, spotify = self.make(tmp_path, active=True, playing=False)
+        outcome = auralis.song_of_the_moment_suggestion()
+        assert outcome.playback == "queued" and spotify.played == []
+
+    def test_a_song_is_queued_when_something_is_playing(self, tmp_path):
+        auralis, spotify = self.make(tmp_path, active=True, playing=True)
+        assert auralis.song_of_the_moment_suggestion().playback == "queued"
+        assert spotify.played == []
+
+    def test_an_offline_default_device_just_records_the_song(self, tmp_path):
+        auralis, spotify = self.make(tmp_path, active=False, online=())
+        assert auralis.song_of_the_moment_suggestion().playback == "none"
+        assert spotify.played == [] and spotify.queued == []
+
+    def test_no_default_device_configured_just_records_the_song(self, tmp_path):
+        auralis, spotify = self.make(tmp_path, active=False)
+        auralis.default_device = None
+        assert auralis.song_of_the_moment_suggestion().playback == "none"
+        assert spotify.played == []
+
+    def test_queue_only_never_starts_music(self, tmp_path):
+        auralis, spotify = self.make(tmp_path, active=False)
+        outcome = auralis.song_of_the_moment_suggestion(device_id="queue-only")
+        assert outcome.playback == "none" and spotify.played == []
+        auralis, spotify = self.make(tmp_path, active=True)
+        outcome = auralis.song_of_the_moment_suggestion(device_id="queue-only")
+        assert outcome.playback == "queued" and spotify.played == []
+
+    def test_a_playlist_starts_on_the_default_device_when_spotify_is_off(
+        self, tmp_path
+    ):
+        auralis, spotify = self.make(tmp_path, active=False)
+        outcome = auralis.playlist_generator("upbeat")
+        assert outcome.playback == "playing"
+        assert spotify.played == [("playlist", "spotify:playlist:p1", "id-Office")]
+
+    def test_a_playlist_never_cuts_in_on_playing_music(self, tmp_path):
+        auralis, spotify = self.make(tmp_path, active=True, playing=True)
+        outcome = auralis.playlist_generator("upbeat")
+        assert outcome.playback == "none" and spotify.played == []
+
+    def test_a_playlist_uses_the_open_device_when_paused(self, tmp_path):
+        auralis, spotify = self.make(tmp_path, active=True, playing=False)
+        outcome = auralis.playlist_generator("upbeat")
+        assert outcome.playback == "playing"
+        assert spotify.played == [("playlist", "spotify:playlist:p1", None)]

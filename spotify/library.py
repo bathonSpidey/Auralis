@@ -216,6 +216,16 @@ class Spotify:
     def active_device(self) -> Optional[Device]:
         return next((d for d in self.devices() if d.is_active), None)
 
+    def find_device(self, name: str) -> Optional[Device]:
+        """An online device by name (exact, else part of the name), ignoring
+        case. Device ids change; the name is what a person knows."""
+        wanted = (name or "").casefold().strip()
+        if not wanted:
+            return None
+        devices = self.devices()
+        exact = next((d for d in devices if d.name.casefold() == wanted), None)
+        return exact or next((d for d in devices if wanted in d.name.casefold()), None)
+
     def current_device(self) -> Optional[Device]:
         """The device that is playing now, else the last one Spotify remembers.
 

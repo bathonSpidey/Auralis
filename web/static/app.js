@@ -115,7 +115,7 @@ const STEPS = {
 };
 
 /* ── state ────────────────────────────────────────────────────────────── */
-const settings = Object.assign({ preview: true, device: "", depth: "auto", songWeb: false }, store.get("settings", {}));
+const settings = Object.assign({ preview: true, depth: "auto", songWeb: false }, store.get("settings", {}));
 const state = { tab: "create", jobId: store.get("job", null), job: null, poll: null, clock: null, historyOffset: 0 };
 const saveSettings = () => store.set("settings", settings);
 
@@ -136,7 +136,7 @@ function showTab(name) {
   if (name === "taste") loadTaste();
 }
 
-/* ── status + devices ─────────────────────────────────────────────────── */
+/* ── status ─────────────────────────────────────────────────── */
 async function refreshStatus() {
   const status = $("#status");
   try {
@@ -152,22 +152,6 @@ async function refreshStatus() {
   } catch (_) {
     status.replaceChildren(h("span", { class: "pill" }, h("span", { class: "dot bad" }), "Can't reach Auralis"));
   }
-}
-
-async function loadDevices() {
-  const select = $("#device");
-  try {
-    const { devices } = await api("/api/devices");
-    select.replaceChildren(
-      h("option", { value: "" }, "Don't play, just create"),
-      // Spotify only lists devices that are online; this one also covers the
-      // device it remembers as the last one used.
-      h("option", { value: "current" }, "Where I'm listening (playing now, or last used)"),
-      ...devices.map((d) => h("option", { value: d.id }, d.name + (d.is_active ? " (active now)" : ""))),
-    );
-    const known = settings.device === "current" || devices.some((d) => d.id === settings.device);
-    select.value = known ? settings.device : "";
-  } catch (_) { /* the list is optional */ }
 }
 
 /* ── where, when and the weather ──────────────────────────────────────── */
@@ -273,7 +257,6 @@ function buildComposer() {
   renderDepth();
   $("#preview").checked = settings.preview;
   $("#preview").addEventListener("change", (e) => { settings.preview = e.target.checked; saveSettings(); });
-  $("#device").addEventListener("change", (e) => { settings.device = e.target.value; saveSettings(); });
   $("#dj-on").addEventListener("change", (e) => saveDj({ enabled: e.target.checked }));
   $("#dj-minutes").addEventListener("change", (e) => saveDj({ minutes: Number(e.target.value) }));
   $("#dj-trigger").addEventListener("change", (e) => saveDj({ polling: e.target.value === "self" }));
@@ -285,7 +268,7 @@ function buildComposer() {
 }
 
 function common() {
-  return { preview: settings.preview, device_id: settings.device || null };
+  return { preview: settings.preview };
 }
 
 async function submitPlaylist() {
@@ -477,7 +460,7 @@ function resultPanel(job) {
 
 async function createFromPreview(job) {
   try {
-    const next = await api(`/api/jobs/${job.id}/create` + (settings.device ? `?device_id=${encodeURIComponent(settings.device)}` : ""), { method: "POST" });
+    const next = await api(`/api/jobs/${job.id}/create`, { method: "POST" });
     watch(next.id);
   } catch (error) { toast(error.message); }
 }
@@ -593,10 +576,9 @@ async function boot() {
   document.querySelectorAll(".tab").forEach((tab) => tab.addEventListener("click", () => showTab(tab.dataset.tab)));
   window.addEventListener("hashchange", () => showTab(location.hash.slice(1)));
   $("#more").addEventListener("click", () => loadHistory(false));
-  window.addEventListener("focus", () => { loadDevices(); refreshStatus(); loadDj(); });
+  window.addEventListener("focus", () => { refreshStatus(); loadDj(); });
   showTab(location.hash.slice(1) || "create");
   refreshStatus();
-  loadDevices();
   loadNow();
   loadDj();
   setInterval(loadDj, 60000);

@@ -36,6 +36,9 @@ RECENT_CREATIONS = 2
 # Device id the UI/Discord send for "where I'm listening": the playing device,
 # or the last one Spotify remembers.
 CURRENT_DEVICE = "current"
+# Songs that must never start music, only join a queue that is already running
+# (the daily song and the DJ).
+QUEUE_ONLY = "queue-only"
 CURATOR_BUDGET_USD = 3.0
 SONG_BUDGET_USD = 3.0
 
@@ -87,7 +90,9 @@ class Auralis:
         store: Optional[Store] = None,
         weather=None,
         home=None,
+        default_device: Optional[str] = None,
     ):
+        self.default_device = default_device  # where music starts when Spotify is off
         self.weather = weather
         self.home = home  # live readings from the listener's home, if any
         self.advisor = advisor
@@ -374,13 +379,32 @@ class Auralis:
         return result
 
     # ── playback ────────────────────────────────────────────────────────
+    def _default_device(self):
+        """The device music starts on when Spotify is not open anywhere, if it
+        is online right now."""
+        if not self.default_device:
+            return None
+        try:
+            return self.spotify.find_device(self.default_device)
+        except SpotifyError as e:
+            logger.warning("Could not look up the default device (%s)", e)
+            return None
+
     def _start_playlist(self, uri: str, device_id: Optional[str]) -> bool:
         """Play on the chosen device, else on an active device that is idle.
         Never interrupts what is already playing and never picks a device."""
         try:
             device_id = self._resolve_device(device_id)
-            if device_id is None and self.spotify.is_playing():
+            if device_id == QUEUE_ONLY:
                 return False
+            if device_id is None:
+                if self.spotify.is_playing():
+                    return False  # never cut in on what is playing
+                if self.spotify.active_device() is None:
+                    device = self._default_device()
+                    if device is None:
+                        return False
+                    device_id = device.id
             self.spotify.play_playlist(uri, device_id=device_id)
             return True
         except NoDeviceError:
@@ -391,12 +415,22 @@ class Auralis:
 
     def _play_song(self, track: dict, device_id: Optional[str]) -> str:
         """A song never cuts in on music that is already playing: it goes to
-        the queue, like the DJ's songs. Only when nothing is playing does a
-        chosen device start it; with no device chosen it is queued on the
-        device that is open, and with Spotify closed it is only recorded."""
+        the queue, like the DJ's songs. With no device chosen it is queued on
+        whichever device Spotify is open on, and when Spotify is off it starts
+        on the default device (if there is one). A chosen device starts it
+        only when nothing is playing."""
         try:
             device_id = self._resolve_device(device_id)
-            if device_id is None or self.spotify.is_playing():
+            if device_id == QUEUE_ONLY:
+                return self.enqueue(track["uri"])
+            if device_id is None:
+                if self.spotify.active_device() is not None:
+                    return self.enqueue(track["uri"])
+                device = self._default_device()
+                if device is None:
+                    return "none"
+                device_id = device.id
+            elif self.spotify.is_playing():
                 return self.enqueue(track["uri"])
             self.spotify.play_track(track["uri"], device_id=device_id)
             return "playing"
